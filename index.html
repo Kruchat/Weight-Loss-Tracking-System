@@ -1,0 +1,2748 @@
+<!DOCTYPE html>
+<!-- [UI] เพิ่ม class 'dark' ที่นี่เพื่อควบคุมโหมดมืด -->
+<html lang="th" class=""> 
+<head>
+    <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">    <title>แอปติดตามสุขภาพ (Health Tracker)</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    
+    <!-- [API] AutoAnimate (สำหรับ Fluid UX) -->
+    <script src="https://cdn.jsdelivr.net/npm/@formkit/auto-animate@0.8.2/index.global.min.js"></script>
+    <!-- [API] Lucide Icons (สำหรับ Clean UI) -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- [UI] เพิ่ม Tailwind Dark Mode 'class' strategy -->
+    <script>
+        tailwind.config = {
+            darkMode: 'class', // เปิดใช้งานโหมดมืดโดยใช้ class
+        }
+    </script>
+    
+    <style>
+        body { font-family: 'Noto Sans Thai', 'Inter', sans-serif; overscroll-behavior: none; }
+        .app-page { display: none; animation: fadeIn 0.5s ease-in-out; }
+        .app-page.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .btn-gradient { background-image: linear-gradient(to right, #6366F1, #A855F7); color: white; transition: all 0.3s ease; }
+        .btn-gradient:hover { transform: translateY(-2px); box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1); }
+        .btn-outline { background-color: transparent; border: 2px solid #6366F1; color: #6366F1; transition: all 0.3s ease; }
+        .btn-outline:hover { background-color: #6366F1; color: white; }
+        .btn-ghost { background-color: transparent; color: #6366F1; transition: all 0.3s ease; }
+        .btn-ghost:hover { background-color: #EEF2FF; }
+        .dark .btn-ghost:hover { background-color: #312E81; }
+        
+        .card { 
+            background-color: white;
+            border-radius: 0.75rem; /* 12px */
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+            border: 1px solid #F3F4F6; /* border-gray-100 */
+        }
+        .dark .card {
+            background-color: #1F2937; /* dark:bg-gray-800 */
+            border-color: #374151; /* dark:border-gray-700 */
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+        }
+
+        .chart-container { position: relative; height: 300px; width: 100%; }
+        .modal-overlay { transition: opacity 0.3s ease; z-index: 40; }
+        .modal-container { z-index: 50; }
+        /* [NEW] ขยาย Modal สำหรับ Code */
+        .modal-container.modal-lg .modal-content {
+            max-width: 90%;
+            width: 600px;
+        }
+        .modal-content { transition: all 0.3s ease; transform: scale(0.95); opacity: 0; }
+        .modal-content.show { transform: scale(1); opacity: 1; }
+        
+        /* [NEW UI] Action Sheet Styles */
+        .modal-container.action-sheet {
+            align-items: flex-end; /* Align to bottom */
+            padding: 0; /* No padding for action sheet container */
+        }
+        .modal-content.action-sheet {
+            width: 100%;
+            border-radius: 1.5rem 1.5rem 0 0; /* 24px top-left, top-right */
+            transform: translateY(100%); /* Start off-screen bottom */
+            opacity: 1; /* Start with opacity 1 */
+            max-width: 100%; /* Override default card max-width */
+            box-shadow: 0 -10px 25px -5px rgba(0, 0, 0, 0.1), 0 -8px 10px -6px rgba(0, 0, 0, 0.1);
+        }
+        .dark .modal-content.action-sheet {
+            box-shadow: 0 -10px 25px -5px rgba(0, 0, 0, 0.3), 0 -8px 10px -6px rgba(0, 0, 0, 0.3);
+        }
+        .modal-content.action-sheet.show {
+            transform: translateY(0); /* Slide in */
+        }
+        /* End Action Sheet Styles */
+        
+        /* [UI] Refined Nav Bar (Pill + Lucide) */
+        .nav-btn {
+            color: #6B7280; /* gray-500 */
+            transition: all 0.2s ease-in-out;
+            display: flex; flex-direction: column; align-items: center;
+            justify-content: center; flex-grow: 1;
+            padding-top: 8px; padding-bottom: 8px;
+            border-radius: 9999px;
+            position: relative;
+            transform: scale(0.95);
+        }
+        .nav-btn span { font-size: 0.7rem; line-height: 1rem; }
+        .nav-btn.active {
+            color: #6366F1; /* indigo-500 */
+            background-color: #EEF2FF; /* indigo-50 */
+            transform: scale(1);
+        }
+        .dark .nav-btn { color: #9CA3AF; } /* dark:text-gray-400 */
+        .dark .nav-btn.active {
+            color: #C7D2FE; /* dark:text-indigo-200 */
+            background-color: #312E81; /* dark:bg-indigo-900 */
+        }
+
+        .empty-state { display: none; text-align: center; padding: 40px 20px; border: 2px dashed #D1D5DB; border-radius: 12px; background-color: #F9FAFB; }
+        .dark .empty-state { border-color: #4B5563; background-color: #1F2937; } 
+        
+        #toast-notification { position: fixed; top: 20px; left: 50%; transform: translate(-50%, -150%); padding: 12px 24px; border-radius: 9999px; font-weight: 600; z-index: 100; transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1); text-align: center; max-width: 90%; }
+        #toast-notification.show { transform: translate(-50%, 0); }
+        .date-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+        .date-nav button { background: #EEF2FF; color: #4F46E5; border-radius: 9999px; width: 40px; height: 40px; font-weight: bold; transition: background 0.2s ease; }
+        .dark .date-nav button { background: #312E81; color: #C7D2FE; } 
+        .date-nav button:hover { background: #E0E7FF; }
+        .dark .date-nav button:hover { background: #3730A3; } 
+        .date-nav button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .dark .date-nav button:disabled { opacity: 0.5; }
+        .date-nav-display { font-size: 1.125rem; font-weight: 600; color: #4F46E5; }
+        .dark .date-nav-display { color: #A5B4FC; } 
+
+        .tab-btn { flex: 1; text-align: center; padding: 12px; font-weight: 600; color: #6B7280; border-bottom: 2px solid transparent; transition: all 0.2s ease; }
+        .dark .tab-btn { color: #9CA3AF; }
+        .tab-btn.active { color: #6366F1; border-bottom-color: #6366F1; }
+        .dark .tab-btn.active { color: #A5B4FC; border-bottom-color: #A5B4FC; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        
+        .photo-gallery { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; }
+        .photo-card { border-radius: 0.75rem; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.05); border: 1px solid #E5E7EB; }
+        .dark .photo-card { border-color: #4B5563; }
+        .photo-card img { width: 100%; height: 200px; object-fit: cover; background-color: #F3F4F6; }
+        .dark .photo-card img { background-color: #374151; }
+        .photo-card-info { padding: 0.75rem; background-color: white; }
+        .dark .photo-card-info { background-color: #1F2937; } 
+
+        .progress-bar-bg { background-color: #E5E7EB; border-radius: 9999px; height: 0.75rem; overflow: hidden; }
+        .dark .progress-bar-bg { background-color: #374151; }
+        .progress-bar-fill { height: 100%; border-radius: 9999px; transition: width 0.5s ease; }
+        
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .spinner { animation: spin 1s linear infinite; }
+
+        /* [UX] Floating Action Button (FAB) */
+        #fab-add-btn {
+            position: fixed;
+            bottom: 5.5rem; /* 88px (เหนือ Nav Bar) */
+            right: 1.5rem; /* 24px */
+            z-index: 25;
+            /* [NEW] Always visible */
+            transform: scale(1);
+            transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+        
+        /* [NEW] Chat Modal Styles */
+        #chat-modal-container {
+            position: fixed;
+            inset: 0;
+            z-index: 60;
+            transform: translateY(100%);
+            transition: transform 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+            max-width: 100%;
+        }
+        #chat-modal-container.show {
+            transform: translateY(0);
+        }
+        #chat-message-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            padding: 1rem;
+        }
+        .chat-bubble {
+            padding: 0.75rem 1rem;
+            border-radius: 1.25rem;
+            max-width: 85%;
+            word-wrap: break-word;
+        }
+        .chat-bubble.user {
+            background-color: #6366F1; /* indigo-500 */
+            color: white;
+            border-bottom-right-radius: 0.25rem;
+            align-self: flex-end;
+        }
+        .chat-bubble.bot {
+            background-color: #E0E7FF; /* indigo-100 */
+            color: #1F2937; /* gray-800 */
+            border-bottom-left-radius: 0.25rem;
+            align-self: flex-start;
+        }
+        .dark .chat-bubble.bot {
+            background-color: #312E81; /* dark:bg-indigo-900 */
+            color: #E0E7FF; /* dark:text-indigo-100 */
+        }
+        .chat-bubble.bot.loading {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .dot-flashing { position: relative; width: 6px; height: 6px; border-radius: 50%; background-color: #6366F1; color: #6366F1; animation: dotFlashing 1s infinite linear alternate; animation-delay: .5s; }
+        .dot-flashing::before, .dot-flashing::after { content: ''; display: inline-block; position: absolute; top: 0; }
+        .dot-flashing::before { left: -10px; width: 6px; height: 6px; border-radius: 50%; background-color: #6366F1; color: #6366F1; animation: dotFlashing 1s infinite alternate; animation-delay: 0s; }
+        .dot-flashing::after { left: 10px; width: 6px; height: 6px; border-radius: 50%; background-color: #6366F1; color: #6366F1; animation: dotFlashing 1s infinite alternate; animation-delay: 1s; }
+        .dark .dot-flashing, .dark .dot-flashing::before, .dark .dot-flashing::after { background-color: #A5B4FC; color: #A5B4FC; }
+        @keyframes dotFlashing { 0% { background-color: #6366F1; } 50%, 100% { background-color: rgba(99, 102, 241, 0.2); } }
+        .dark @keyframes dotFlashing { 0% { background-color: #A5B4FC; } 50%, 100% { background-color: rgba(165, 180, 252, 0.2); } }
+
+        #chat-suggestion-chips {
+            display: flex;
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            -ms-overflow-style: none;  /* IE and Edge */
+            scrollbar-width: none;  /* Firefox */
+        }
+        #chat-suggestion-chips::-webkit-scrollbar { display: none; } /* Chrome, Safari */
+        .suggestion-chip {
+            flex-shrink: 0;
+            padding: 0.5rem 0.75rem;
+            font-size: 0.8rem;
+            font-weight: 500;
+            background-color: #EEF2FF;
+            color: #4F46E5;
+            border-radius: 9999px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .dark .suggestion-chip { background-color: #312E81; color: #C7D2FE; }
+        .suggestion-chip:hover { background-color: #E0E7FF; }
+        .dark .suggestion-chip:hover { background-color: #3730A3; }
+
+        .chat-confirmation-buttons {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+        .chat-confirmation-buttons button {
+            font-size: 0.875rem;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-weight: 600;
+        }
+
+        /* [NEW] Code block style for setup modal */
+        .code-block {
+            background-color: #1F2937; /* gray-800 */
+            color: #F3F4F6; /* gray-100 */
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 0.875rem;
+            line-height: 1.25rem;
+            position: relative;
+        }
+        .copy-code-btn {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            background-color: #4B5563; /* gray-600 */
+            color: white;
+            border: none;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .copy-code-btn:hover {
+            background-color: #6B7280; /* gray-500 */
+        }
+        .dark .code-block {
+            background-color: #030712; /* gray-950 */
+        }
+
+        /* [NEW] Calendar Styles */
+        .calendar-grid { /* [MODIFIED] Changed from ID to class */
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 4px;
+        }
+        .calendar-day-header {
+            font-size: 0.75rem; /* 12px */
+            font-weight: 600;
+            text-align: center;
+            color: #6B7280; /* gray-500 */
+        }
+        .dark .calendar-day-header { color: #9CA3AF; /* dark:text-gray-400 */ }
+        .calendar-day {
+            position: relative;
+            padding: 8px 0;
+            text-align: center;
+            font-size: 0.875rem; /* 14px */
+            font-weight: 500;
+            cursor: pointer;
+            border-radius: 9999px; /* rounded-full */
+            transition: background-color 0.2s ease, color 0.2s ease;
+            aspect-ratio: 1 / 1; /* ทำให้เป็นสี่เหลี่ยมจัตุรัส */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .calendar-day:not(.empty):hover {
+            background-color: #F3F4F6; /* gray-100 */
+        }
+        .dark .calendar-day:not(.empty):hover { background-color: #374151; /* dark:bg-gray-700 */ }
+        .calendar-day.empty {
+            cursor: default;
+            color: #D1D5DB; /* gray-300 */
+        }
+        .dark .calendar-day.empty { color: #4B5563; /* dark:text-gray-600 */ }
+
+        /* [MODIFIED] Nutrition Calendar Theme */
+        #nutrition-calendar .calendar-day.today {
+            font-weight: 700;
+            color: #6366F1; /* indigo-500 */
+            background-color: #EEF2FF; /* indigo-50 */
+        }
+        .dark #nutrition-calendar .calendar-day.today { 
+            color: #A5B4FC; /* dark:text-indigo-300 */ 
+            background-color: #312E81; /* dark:bg-indigo-900 */
+        }
+        #nutrition-calendar .calendar-day.selected {
+            background-color: #6366F1; /* indigo-500 */
+            color: white;
+            font-weight: 700;
+        }
+        .dark #nutrition-calendar .calendar-day.selected {
+            background-color: #A5B4FC; /* dark:text-indigo-300 */
+            color: #1F2937; /* dark:text-gray-800 */
+        }
+
+        /* [NEW] Exercise Calendar Theme (Orange) */
+        #exercise-calendar .calendar-day.today {
+            font-weight: 700;
+            color: #F97316; /* orange-600 */
+            background-color: #FFF7ED; /* orange-50 */
+        }
+        .dark #exercise-calendar .calendar-day.today { 
+            color: #FB923C; /* dark:text-orange-400 */ 
+            background-color: #7C2D12; /* dark:bg-orange-950 */
+        }
+        #exercise-calendar .calendar-day.selected {
+            background-color: #F97316; /* orange-600 */
+            color: white;
+            font-weight: 700;
+        }
+        .dark #exercise-calendar .calendar-day.selected {
+            background-color: #FB923C; /* dark:text-orange-400 */
+            color: #1F2937; /* dark:text-gray-800 */
+        }
+        
+        /* [MODIFIED] Generic dot styles */
+        .calendar-day-dot {
+            position: absolute;
+            bottom: 6px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+        }
+        #nutrition-calendar .calendar-day-dot { background-color: #10B981; /* green-500 */ }
+        .dark #nutrition-calendar .calendar-day-dot { background-color: #34D399; /* green-400 */ }
+        #exercise-calendar .calendar-day-dot { background-color: #F97316; /* orange-600 */ }
+        .dark #exercise-calendar .calendar-day-dot { background-color: #FB923C; /* orange-400 */ }
+        
+        .calendar-day.selected .calendar-day-dot {
+            background-color: white;
+        }
+        .dark .calendar-day.selected .calendar-day-dot {
+            background-color: #1F2937; /* dark:text-gray-800 */
+        }
+        /* End Calendar Styles */
+
+    </style>
+</head>
+<body class="bg-slate-100 dark:bg-slate-900 text-gray-900 dark:text-gray-100 antialiased">
+
+    <!-- Main Application Container -->
+    <div class="container mx-auto max-w-lg min-h-screen bg-white dark:bg-slate-950 shadow-2xl">
+
+        <header class="p-4 bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg rounded-b-xl sticky top-0 z-30">
+            <h1 id="header-title" class="text-2xl font-bold text-center">แดชบอร์ด</h1>
+        </header>
+
+        <main class="p-4 pb-24">
+
+            <!-- 1. Dashboard Page -->
+            <section id="page-dashboard" class="app-page active">
+                
+                <div class="card p-4 mb-6">
+                    <h3 class="text-lg font-semibold mb-4 text-gray-700 dark:text-gray-300">สถานะวันนี้</h3>
+                    <div class="space-y-4">
+                        <!-- Calories -->
+                        <div>
+                            <div class="flex justify-between text-sm font-medium mb-1">
+                                <span class="text-gray-700 dark:text-gray-300">แคลอรี่</span>
+                                <span class="text-indigo-600 dark:text-indigo-400"><span id="dash-cal-in">0</span> / <span id="dash-cal-goal">2000</span> kcal</span>
+                            </div>
+                            <div class="progress-bar-bg">
+                                <div id="dash-cal-bar" class="progress-bar-fill bg-green-500" style="width: 0%;"></div>
+                            </div>
+                        </div>
+                        <!-- Exercise -->
+                        <div>
+                            <div class="flex justify-between text-sm font-medium mb-1">
+                                <span class="text-gray-700 dark:text-gray-300">ออกกำลังกาย</span>
+                                <span class="text-orange-500"><span id="dash-ex-in">0</span> / <span id="dash-ex-goal">300</span> kcal</span>
+                            </div>
+                            <div class="progress-bar-bg">
+                                <div id="dash-ex-bar" class="progress-bar-fill bg-orange-500" style="width: 0%;"></div>
+                            </div>
+                        </div>
+                        <!-- Water -->
+                        <div>
+                            <div class="flex justify-between text-sm font-medium mb-1">
+                                <span class="text-gray-700 dark:text-gray-300">น้ำดื่ม</span>
+                                <span class="text-blue-500"><span id="dash-water-in">0</span> / <span id="dash-water-goal">8</span> แก้ว</span>
+                            </div>
+                            <div class="progress-bar-bg">
+                                <div id="dash-water-bar" class="progress-bar-fill bg-blue-500" style="width: 0%;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card p-4 mb-6">
+                    <h3 class="text-lg font-semibold mb-3 text-gray-700 dark:text-gray-300">ความคืบหน้าสู่เป้าหมาย (<span id="dash-goal-weight-text">-</span> กก.)</h3>
+                    <div class="flex justify-between text-sm text-gray-600 dark:text-gray-400 mb-1">
+                        <span id="progress-start">...</span>
+                        <span id="progress-goal">...</span>
+                    </div>
+                    <div class="progress-bar-bg h-4"> 
+                        <div id="progress-bar" class="progress-bar-fill bg-gradient-to-r from-green-400 to-blue-500" style="width: 0%;"></div>
+                    </div>
+                    <p id="progress-text" class="text-center text-sm text-gray-600 dark:text-gray-400 mt-2">...</p>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div class="card p-4 text-center">
+                        <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">น้ำหนักปัจจุบัน</h3>
+                        <p class="text-3xl font-bold text-indigo-600 dark:text-indigo-400"><span id="dash-current-weight">-</span> <span class="text-lg">กก.</span></p>
+                    </div>
+                    <div class="card p-4 text-center">
+                        <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">BMI</h3>
+                        <p class="text-3xl font-bold text-purple-600 dark:text-purple-400"><span id="dash-bmi">-</span></p>
+                    </div>
+                    <div class="card p-4 text-center col-span-2">
+                        <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">สถิติการบันทึกน้ำหนัก</h3>
+                        <div class="flex items-center justify-center space-x-2">
+                            <span class="text-3xl font-bold text-orange-500"><span id="dash-streak">0</span> วัน</span>
+                            <i data-lucide="flame" class="w-8 h-8 text-orange-500"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card p-4 mb-6">
+                    <h3 class="text-lg font-semibold mb-3 text-gray-700 dark:text-gray-300">สรุปสัปดาห์นี้</h3>
+                    <div class="space-y-2">
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-600 dark:text-gray-400">น้ำหนักเปลี่ยนแปลง</span>
+                            <span id="report-weight" class="text-sm font-semibold">-</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-600 dark:text-gray-400">แคลอรี่เฉลี่ย/วัน (เทียบสัปดาห์ก่อน)</span>
+                            <span id="report-calories" class="text-sm font-semibold">-</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-600 dark:text-gray-400">เผาผลาญแคลฯ รวม (เทียบสัปดาห์ก่อน)</span>
+                            <span id="report-exercise" class="text-sm font-semibold">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card p-4">
+                    <h3 class="text-lg font-semibold mb-3 text-gray-700 dark:text-gray-300">กราฟน้ำหนัก</h3>
+                    <div class="chart-container">
+                        <canvas id="weightChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 2. Weight Log Page -->
+            <section id="page-log" class="app-page">
+                <h2 class="text-xl font-semibold mb-4 text-gray-700 dark:text-gray-300">บันทึกน้ำหนัก</h2>
+                
+                <div class="flex mb-4 border-b border-gray-200 dark:border-gray-700">
+                    <button id="tab-btn-history" class="tab-btn active" data-tab="history">ประวัติ</button>
+                    <button id="tab-btn-photos" class="tab-btn" data-tab="photos">แกลเลอรี</button>
+                </div>
+
+                <!-- Tab: History -->
+                <div id="tab-content-history" class="tab-content active">
+                    <div id="weight-log-table-container" class="overflow-x-auto card p-2">
+                        <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                            <thead class="bg-gray-50 dark:bg-gray-800 rounded-t-lg"><tr class="text-left"><th class="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">วันที่</th><th class="px-4 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">น้ำหนัก (กก.)</th><th class="px-4 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">จัดการ</th></tr></thead>
+                            <tbody id="weight-history-body" class="bg-white dark:bg-transparent divide-y divide-gray-200 dark:divide-gray-700" data-auto-animate></tbody>
+                        </table>
+                    </div>
+                    <div id="empty-state-weight" class="empty-state">
+                        <i data-lucide="scale" class="empty-state-icon"></i>
+                        <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-2">ยังไม่มีการบันทึกน้ำหนัก</h3>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">มาเริ่มติดตามน้ำหนักของคุณเพื่อดูความคืบหน้ากันเถอะ</p>
+                        <button id="empty-weight-btn" class="btn-outline font-semibold py-2 px-6 rounded-lg">+ บันทึกครั้งแรก</button>
+                    </div>
+                </div>
+                
+                <!-- Tab: Photos -->
+                <div id="tab-content-photos" class="tab-content">
+                    <div id="photo-gallery-container" class="photo-gallery" data-auto-animate></div>
+                    <div id="empty-state-photos" class="empty-state">
+                        <i data-lucide="image" class="empty-state-icon"></i>
+                        <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-2">ยังไม่มีรูปถ่าย</h3>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">บันทึกรูปถ่ายเพื่อดูการเปลี่ยนแปลงของร่างกายคุณ</p>
+                        <button id="empty-photo-btn" class="btn-outline font-semibold py-2 px-6 rounded-lg">+ เพิ่มรูปแรก</button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- 3. Exercise Log Page -->
+            <section id="page-exercise" class="app-page">
+                <h2 class="text-xl font-semibold mb-4 text-gray-700 dark:text-gray-300">บันทึกการออกกำลังกาย</h2>
+                
+                <!-- [NEW] Calendar Navigation (replaces daily nav) -->
+                <div class="date-nav">
+                    <button id="ex-prev-month-btn"><i data-lucide="chevron-left" class="w-5 h-5"></i></button>
+                    <span id="ex-month-display" class="date-nav-display">...</span>
+                    <button id="ex-next-month-btn"><i data-lucide="chevron-right" class="w-5 h-5"></i></button>
+                </div>
+                <div id="exercise-calendar" class="card p-4 mb-6">
+                    <!-- Exercise calendar grid will be generated here by JS -->
+                </div>
+                <!-- End Calendar -->
+
+                <div class="card p-4 mb-6 text-center">
+                    <h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">เผาผลาญ (<span id="ex-date-text"></span>)</h3>
+                    <p class="text-3xl font-bold text-orange-500"><span id="ex-total-calories">0</span> / <span id="ex-goal-calories">300</span> <span class="text-xl">kcal</span></p>
+                </div>
+                
+                <div id="exercise-log-table-container" class="overflow-x-auto card p-2">
+                    <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                        <thead class="bg-gray-50 dark:bg-gray-800 rounded-t-lg"><tr class="text-left"><th class="px-3 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">กิจกรรม</th><th class="px-3 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">นาที</th><th class="px-3 py-3 text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Kcal</th><th class="px-3 py-3 text-right text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">...</th></tr></thead>
+                        <tbody id="exercise-history-body" class="bg-white dark:bg-transparent divide-y divide-gray-200 dark:divide-gray-700" data-auto-animate></tbody>
+                    </table>
+                </div>
+                <div id="empty-state-exercise" class="empty-state">
+                    <i data-lucide="activity" class="empty-state-icon"></i>
+                    <h3 class="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-2">ยังไม่มีการออกกำลังกาย</h3>
+                    <p class="text-sm text-gray-500 dark:text-gray-400 mb-4">บันทึกกิจกรรมของคุณสำหรับวันนี้</p>
+                    <button id="empty-exercise-btn" class="btn-outline font-semibold py-2 px-6 rounded-lg">+ บันทึกกิจกรรม</button>
+                </div>
+            </section>
+
+            <!-- 4. Nutrition Page -->
+            <section id="page-nutrition" class="app-page">
+                <h2 class="text-xl font-semibold mb-4 text-gray-700 dark:text-gray-300">โภชนาการ</h2>
+                
+                <!-- [NEW] Calendar Navigation -->
+                <div class="date-nav">
+                    <button id="nutri-prev-month-btn"><i data-lucide="chevron-left" class="w-5 h-5"></i></button>
+                    <span id="nutri-month-display" class="date-nav-display">...</span>
+                    <button id="nutri-next-month-btn"><i data-lucide="chevron-right" class="w-5 h-5"></i></button>
+                </div>
+                <div id="nutrition-calendar" class="card p-4 mb-6">
+                    <!-- Calendar grid will be generated here by JS -->
+                </div>
+                <!-- End Calendar -->
+
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div class="card p-4 text-center"><h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">แคลอรี่ (kcal)</h3><p class="text-2xl font-bold text-green-600 dark:text-green-400"><span id="nutri-calories">0</span> / <span id="nutri-calories-goal" class="text-base">2000</span></p></div>
+                    <div class="card p-4 text-center"><h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">โปรตีน (g)</h3><p class="text-2xl font-bold text-red-600 dark:text-red-400"><span id="nutri-protein">0</span></p></div>
+                    <div class="card p-4 text-center"><h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">คาร์โบฯ (g)</h3><p class="text-2xl font-bold text-yellow-600 dark:text-yellow-400"><span id="nutri-carbs">0</span></p></div>
+                    <div class="card p-4 text-center"><h3 class="text-sm font-medium text-gray-500 dark:text-gray-400">ไขมัน (g)</h3><p class="text-2xl font-bold text-blue-600 dark:text-blue-400"><span id="nutri-fat">0</span></p></div>
+                </div>
+                
+                <div class="card p-4 mb-6">
+                    <h3 class="text-lg font-semibold mb-3 text-gray-700 dark:text-gray-300">ดื่มน้ำ (<span id="water-date-text"></span>)</h3>
+                    <div class="flex items-center justify-center space-x-4">
+                        <button id="water-decrement" class="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-full text-2xl font-bold text-gray-600 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition">-</button>
+                        <div class="text-center">
+                            <span id="water-count-display" class="text-3xl font-bold text-blue-600 dark:text-blue-400">0</span>
+                            <span class="text-lg text-gray-600 dark:text-gray-400"> / <span id="water-goal-display">8</span> แก้ว</span>
+                        </div>
+                        <button id="water-increment" class="w-12 h-12 bg-blue-500 rounded-full text-2xl font-bold text-white hover:bg-blue-600 transition">+</button>
+                    </div>
+                </div>
+                <div class="card p-4">
+                    <div class="flex justify-between items-center mb-3">
+                        <h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300">อาหารที่ทาน (<span id="food-date-text"></span>)</h3>
+                        <button id="open-fav-modal-btn" class="btn-ghost p-2 rounded-lg text-sm flex items-center">
+                            <i data-lucide="star" class="w-4 h-4 mr-1"></i>
+                            <span>โปรด</span>
+                        </button>
+                    </div>
+                    <ul id="food-log-list" class="divide-y divide-gray-200 dark:divide-gray-700" data-auto-animate></ul>
+                    <div id="empty-state-food" class="empty-state" style="padding: 20px;">
+                        <i data-lucide="utensils-crossed" class="empty-state-icon"></i>
+                        <h3 class="text-md font-semibold text-gray-800 dark:text-gray-200 mb-1">ยังไม่มีรายการอาหาร</h3>
+                        <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">เริ่มบันทึกอาหารเพื่อติดตามแคลอรี่ของคุณ</p>
+                        <button id="empty-food-btn" class="btn-outline font-semibold py-1 px-4 rounded-lg text-sm">+ เพิ่มอาหาร</button>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- 5. Profile Page -->
+            <section id="page-profile" class="app-page">
+                <h2 class="text-xl font-semibold mb-4 text-gray-700 dark:text-gray-300">โปรไฟล์และเป้าหมาย</h2>
+                
+                <div class="card p-4 mb-6">
+                    <div class="flex justify-between items-center">
+                        <label for="dark-mode-toggle" class="text-lg font-semibold text-gray-700 dark:text-gray-300 flex items-center">
+                            <i data-lucide="moon" class="w-5 h-5 mr-2"></i>
+                            โหมดมืด
+                        </label>
+                        <button id="dark-mode-toggle" class="relative inline-flex items-center h-6 rounded-full w-11 transition-colors bg-gray-200 dark:bg-gray-700">
+                            <span class="sr-only">Enable dark mode</span>
+                            <span class="inline-block w-4 h-4 transform transition-transform bg-white dark:bg-gray-300 rounded-full translate-x-1"></span>
+                        </button>
+                    </div>
+                </div>
+
+                <form id="profile-goal-form" class="card p-6 space-y-4 mb-6">
+                    <h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300 border-b pb-2 dark:border-gray-700">ข้อมูลส่วนตัว</h3>
+                    <div><label for="height" class="block text-sm font-medium text-gray-700 dark:text-gray-300">ส่วนสูง (ซม.)</label><input type="number" id="height" class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-800 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required></div>
+                    <div><label for="gender" class="block text-sm font-medium text-gray-700 dark:text-gray-300">เพศ</label><select id="gender" class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-800 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"><option value="male">ชาย</option><option value="female">หญิง</option></select></div>
+                    <div><label for="age" class="block text-sm font-medium text-gray-700 dark:text-gray-300">อายุ (ปี)</label><input type="number" id="age" class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-800 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required></div>
+                    
+                    <h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300 border-b pt-2 pb-2 dark:border-gray-700">เป้าหมาย</h3>
+                    <div><label for="goal-weight" class="block text-sm font-medium text-gray-700 dark:text-gray-300">น้ำหนักเป้าหมาย (กก.)</label><input type="number" step="0.1" id="goal-weight" class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-800 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required></div>
+                    <div><label for="water-goal" class="block text-sm font-medium text-gray-700 dark:text-gray-300">เป้าหมายดื่มน้ำ (แก้ว)</label><input type="number" id="water-goal" class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-800 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required></div>
+                    <div><label for="exercise-goal" class="block text-sm font-medium text-gray-700 dark:text-gray-300">เป้าหมายเผาผลาญ (kcal/วัน)</label><input type="number" id="exercise-goal" class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-800 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" required></div>
+                    
+                    <div><label for="activity-level" class="block text-sm font-medium text-gray-700 dark:text-gray-300">ระดับกิจกรรม (สำหรับ TDEE)</label><select id="activity-level" class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-800 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"><option value="1.2">ไม่ออกกำลังกายเลย</option><option value="1.375">ออกกำลังกาย 1-3 วัน/สัปดาห์</option><option value="1.55">ออกกำลังกาย 3-5 วัน/สัปดาห์</option><option value="1.725">ออกกำลังกาย 6-7 วัน/สัปดาห์</option><option value="1.9">ออกกำลังกายหนักมาก</option></select></div>
+                    <button type="submit" class="w-full btn-gradient font-semibold py-3 px-4 rounded-lg shadow-lg">บันทึกการเปลี่ยนแปลง</button>
+                </form>
+
+                <div class="card p-6 mb-6">
+                    <h3 class="text-lg font-semibold mb-3 text-gray-700 dark:text-gray-300">ตั้งค่าขั้นสูง (API)</h3>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">หากคุณมี Gemini API Key ส่วนตัว สามารถกรอกเพื่อใช้งานฟีเจอร์ AI ได้ที่นี่</p>
+                    <div class="space-y-2">
+                        <label for="api-key-input" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Gemini API Key</label>
+                        <input type="password" id="api-key-input" class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-800 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" placeholder="••••••••••••••••••••">
+                        <button id="save-api-key-btn" class="w-full bg-indigo-500 text-white font-semibold py-2 px-4 rounded-lg shadow hover:bg-indigo-600 transition">
+                            บันทึก API Key
+                        </button>
+                    </div>
+                </div>
+
+                <!-- [NEW] Google Sheet Sync Card -->
+                <div class="card p-6 mb-6">
+                    <h3 class="text-lg font-semibold mb-3 text-gray-700 dark:text-gray-300">ซิงค์ข้อมูลกับ Google Sheets</h3>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">สำรองข้อมูลทั้งหมดของคุณไปยัง Google Sheet ส่วนตัว (ต้องตั้งค่าก่อน)</p>
+                    <div class="space-y-3">
+                        <label for="google-sheet-url-input" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Apps Script Web App URL</label>
+                        <input type="url" id="google-sheet-url-input" class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-800 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500" placeholder="https://script.google.com/macros/s/...">
+                        
+                        <button id="save-google-sheet-url-btn" class="w-full bg-indigo-500 text-white font-semibold py-2 px-4 rounded-lg shadow hover:bg-indigo-600 transition">
+                            บันทึก URL
+                        </button>
+                        
+                        <div class="grid grid-cols-2 gap-4 pt-2">
+                            <button id="show-google-sheet-setup-btn" class="w-full btn-outline font-semibold py-2 px-4 rounded-lg">
+                                วิธีตั้งค่า (ต้องอ่าน!)
+                            </button>
+                            <button id="sync-google-sheet-btn" class="w-full bg-green-500 text-white font-semibold py-2 px-4 rounded-lg shadow hover:bg-green-600 transition">
+                                ซิงค์ข้อมูลทันที
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card p-6 mb-6">
+                    <h3 class="text-lg font-semibold mb-3 text-gray-700 dark:text-gray-300">สำรองข้อมูล (บนเครื่อง)</h3>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">ข้อมูลของคุณถูกเก็บบนเครื่องนี้เท่านั้น (ใช้ปุ่ม Export/Import)</p>
+                    <div class="grid grid-cols-2 gap-4">
+                        <button id="export-data-btn" class="w-full btn-outline font-semibold py-2 px-4 rounded-lg">Export ข้อมูล</button>
+                        <button id="import-data-btn" class="w-full bg-gray-600 text-white font-semibold py-2 px-4 rounded-lg hover:bg-gray-700 dark:bg-gray-700 dark:hover:bg-gray-600">Import ข้อมูล</button>
+                        <input type="file" id="import-file-input" class="hidden" accept=".json">
+                    </div>
+                </div>
+
+                <div class="card p-6 mb-6">
+                    <h3 class="text-lg font-semibold mb-3 text-gray-700 dark:text-gray-300">เครื่องคำนวณสุขภาพ</h3>
+                    <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">คำนวณค่า BMI, BMR, TDEE จากข้อมูลโปรไฟล์ของคุณ</p>
+                    <button id="calculate-bmi-bmr" class="w-full bg-indigo-500 text-white font-semibold py-2 px-4 rounded-lg shadow hover:bg-indigo-600 transition">คำนวณเลย</button>
+                    <div id="calculator-results" class="mt-4 hidden"><p class="text-lg"><strong>ค่า BMI:</strong> <span id="bmi-result" class="font-bold text-purple-600 dark:text-purple-400"></span></p><p id="bmi-category" class="font-semibold"></p><p class="text-lg mt-2"><strong>ค่า BMR:</strong> <span id="bmr-result" class="font-bold text-purple-600 dark:text-purple-400"></span> kcal</p><p class="text-lg mt-2"><strong>ค่า TDEE:</strong> <span id="tdee-result" class="font-bold text-purple-600 dark:text-purple-400"></span> kcal</p></div>
+                </div>
+
+                <div class="space-y-2">
+                    <h3 class="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-2">เคล็ดลับสุขภาพ</h3>
+                    <div class="card rounded-lg overflow-hidden">
+                        <button class="accordion-toggle flex justify-between items-center w-full p-4 font-semibold text-gray-700 dark:text-gray-300"><span>เคล็ดลับการลดน้ำหนัก</span><i data-lucide="chevron-down" class="w-5 h-5 transition-transform"></i></button>
+                        <div class="accordion-content p-4 bg-white/50 dark:bg-black/10 hidden"><ul class="list-disc list-inside space-y-2 text-gray-600 dark:text-gray-400"><li>ดื่มน้ำให้เพียงพอ</li><li>ทานโปรตีนสูงในมื้อเช้า</li><li>หลีกเลี่ยงเครื่องดื่มรสหวาน</li><li>ทานอาหารกากใยสูง</li><li>ออกกำลังกายสม่ำเสมอ</li><li>นอนหลับให้เพียงพอ</li></ul></div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- [NEW] Floating Action Button (FAB) - Changed to AI Assistant -->
+        <button id="fab-add-btn" class="fixed bottom-24 right-6 btn-gradient w-16 h-16 rounded-full flex items-center justify-center shadow-lg transform transition-all duration-300">
+            <i data-lucide="sparkles" class="w-8 h-8 text-white"></i>
+        </button>
+
+        <!-- [UI] Bottom Tab Navigation (New Icons) -->
+        <nav class="fixed bottom-0 left-0 right-0 max-w-lg mx-auto bg-white dark:bg-slate-900 shadow-[0_-5px_15px_rgba(0,0,0,0.05)] dark:shadow-[0_-5px_15px_rgba(0,0,0,0.2)] rounded-t-2xl border-t border-gray-200 dark:border-gray-800 z-30">
+            <div class="flex justify-around items-center h-16 px-2">
+                <!-- Dashboard -->
+                <button class="nav-btn group active" data-page="page-dashboard" data-title="แดชบอร์ด">
+                    <i data-lucide="layout-dashboard" class="w-5 h-5 mb-1"></i>
+                    <span>แดชบอร์ด</span>
+                </button>
+                <!-- Weight -->
+                <button class="nav-btn group" data-page="page-log" data-title="บันทึกน้ำหนัก">
+                    <i data-lucide="scale" class="w-5 h-5 mb-1"></i>
+                    <span>น้ำหนัก</span>
+                </button>
+                <!-- Exercise -->
+                <button class="nav-btn group" data-page="page-exercise" data-title="ออกกำลังกาย">
+                    <i data-lucide="activity" class="w-5 h-5 mb-1"></i>
+                    <span>ออกกำลัง</span>
+                </button>
+                <!-- Nutrition -->
+                <button class="nav-btn group" data-page="page-nutrition" data-title="โภชนาการ">
+                    <i data-lucide="utensils" class="w-5 h-5 mb-1"></i>
+                    <span>โภชนาการ</span>
+                </button>
+                <!-- Profile -->
+                <button class="nav-btn group" data-page="page-profile" data-title="โปรไฟล์">
+                    <i data-lucide="user" class="w-5 h-5 mb-1"></i>
+                    <span>โปรไฟล์</span>
+                </button>
+            </div>
+        </nav>
+    </div>
+
+    <!-- Modal Container (For existing modals) -->
+    <div id="modal-overlay" class="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 modal-overlay hidden opacity-0"></div>
+    <div id="modal-container" class="fixed inset-0 modal-container flex items-center justify-center p-4 hidden">
+        <div id="modal-content" class="card p-6 modal-content"></div> 
+    </div>
+    
+    <!-- Welcome Modal -->
+    <div id="welcome-modal-overlay" class="fixed inset-0 bg-black bg-opacity-70 modal-overlay hidden opacity-0"></div>
+    <div id="welcome-modal-container" class="fixed inset-0 modal-container flex items-center justify-center p-4 hidden">
+        <div id="welcome-modal-content" class="card p-6 modal-content"> 
+            <h2 class="text-2xl font-bold text-center text-indigo-600 dark:text-indigo-400 mb-2">ยินดีต้อนรับ!</h2>
+            <p class="text-center text-gray-600 dark:text-gray-300 mb-6">มาเริ่มตั้งค่าโปรไฟล์ของคุณกันเถอะ</p>
+            <form id="welcome-form" class="space-y-4">
+                <div><label for="welcome-height" class="block text-sm font-medium text-gray-700 dark:text-gray-300">ส่วนสูง (ซม.)</label><input type="number" id="welcome-height" class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-800" required></div>
+                <div><label for="welcome-age" class="block text-sm font-medium text-gray-700 dark:text-gray-300">อายุ (ปี)</label><input type="number" id="welcome-age" class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-800" required></div>
+                <div><label for="welcome-gender" class="block text-sm font-medium text-gray-700 dark:text-gray-300">เพศ</label><select id="welcome-gender" class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-800"><option value="male">ชาย</option><option value="female">หญิง</option></select></div>
+                <div><label for="welcome-current-weight" class="block text-sm font-medium text-gray-700 dark:text-gray-300">น้ำหนักปัจจุบัน (กก.)</label><input type="number" step="0.1" id="welcome-current-weight" class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-800" required></div>
+                <div><label for="welcome-goal-weight" class="block text-sm font-medium text-gray-700 dark:text-gray-300">น้ำหนักเป้าหมาย (กก.)</label><input type="number" step="0.1" id="welcome-goal-weight" class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm bg-white dark:bg-gray-800" required></div>
+                <button type="submit" class="w-full btn-gradient font-semibold py-3 px-4 rounded-lg shadow-lg">เริ่มต้นใช้งาน</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- [NEW] AI Chat Modal -->
+    <div id="chat-modal-container" class="hidden"> <!-- [NEW] Full screen modal, hidden by default -->
+        <div class="container mx-auto max-w-lg h-full flex flex-col bg-white dark:bg-slate-950 shadow-2xl">
+            <!-- Chat Header -->
+            <header class="p-4 bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg sticky top-0 z-10 flex justify-between items-center">
+                <h2 class="text-2xl font-bold text-center flex-grow flex items-center justify-center">
+                    <i data-lucide="sparkles" class="w-6 h-6 mr-2"></i>
+                    ผู้ช่วย Dr. Fit
+                </h2>
+                <button id="close-chat-btn" class="text-white hover:bg-white/20 rounded-full p-1">
+                    <i data-lucide="x" class="w-6 h-6"></i>
+                </button>
+            </header>
+            
+            <!-- Chat Message List -->
+            <div id="chat-message-list" class="flex-1 overflow-y-auto" data-auto-animate>
+                <!-- Welcome Message -->
+                <div class="chat-bubble bot">
+                    สวัสดีครับ! ผมคือ Dr. Fit ผู้ช่วย AI ส่วนตัวของคุณ มีอะไรให้ผมช่วยไหมครับ?
+                    <br><br>
+                    คุณสามารถถามคำถามสุขภาพ หรือสั่งให้ผมบันทึกข้อมูลได้เลย เช่น:
+                    <ul class="list-disc list-inside mt-2 text-sm">
+                        <li>"วันนี้ผมกินข้าวมันไก่"</li>
+                        <li>"ฉันวิ่งไป 30 นาที"</li>
+                        <li>"บันทึกน้ำหนักวันนี้ 75.5 กก."</li> <!-- [FIX] Added weight example -->
+                        <li>"น้ำหนักปัจจุบันของฉันคือเท่าไหร่?"</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Suggestion Chips -->
+            <div id="chat-suggestion-chips" class="border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-950">
+                <span class="suggestion-chip">วันนี้กินอะไรไปบ้าง?</span>
+                <span class="suggestion-chip">ต้องลดอีกกี่โล?</span>
+                <span class="suggestion-chip">วิ่ง 20 นาที กี่แคล?</span>
+                <span class="suggestion-chip">ขอกำลังใจหน่อย</span>
+            </div>
+
+            <!-- Chat Input Form -->
+            <form id="chat-form" class="p-4 border-t border-gray-200 dark:border-gray-800 bg-white dark:bg-slate-950 sticky bottom-0">
+                <div class="flex items-center space-x-2">
+                    <input type="text" id="chat-input" class="flex-1 block w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-full bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="พิมพ์คุยกับ Dr. Fit ที่นี่..." required>
+                    <button type="submit" class="p-3 btn-gradient rounded-full text-white">
+                        <i data-lucide="send" class="w-6 h-6"></i>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+
+    <!-- Toast Notification -->
+    <div id="toast-notification"><span id="toast-message"></span></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // --- UTILITY FUNCTIONS ---
+            const getTodayString = () => new Date().toISOString().split('T')[0];
+            const formatLocalDate = (dateString, options = { day: 'numeric', month: 'short', year: 'numeric' }) => {
+                const date = new Date(dateString + 'T00:00:00'); 
+                return date.toLocaleDateString('th-TH', options);
+            };
+            const addDays = (dateString, days) => {
+                const date = new Date(dateString + 'T00:00:00');
+                date.setDate(date.getDate() + days);
+                return date.toISOString().split('T')[0];
+            };
+            const formatNavDate = (dateString) => {
+                const today = getTodayString();
+                const yesterday = addDays(today, -1);
+                if (dateString === today) return 'วันนี้';
+                if (dateString === yesterday) return 'เมื่อวานนี้';
+                return formatLocalDate(dateString, { day: 'numeric', month: 'short' });
+            };
+
+            // --- DB Keys (สำหรับการ Migration) ---
+            // [NEW] v13
+            const V13_DB_KEY = 'healthTrackerDB_v13'; 
+            const V12_DB_KEY = 'healthTrackerDB_v12'; 
+            const V10_DB_KEY = 'healthTrackerDB_v10'; 
+            const V9_DB_KEY = 'healthTrackerDB_v9';
+            const V8_DB_KEY = 'healthTrackerDB_v8';
+            const V7_DB_KEY = 'healthTrackerDB_v7';
+            const V5_DB_KEY = 'healthTrackerDB_v5';
+            const V4_DB_KEY = 'healthTrackerDB';
+
+            // --- STATE MANAGEMENT ---
+            let db = {
+                profile: { height: null, gender: 'male', age: null, goalWeight: null, activityLevel: 1.2, waterGoal: 8, theme: 'light', exerciseGoal: 300, apiKey: null, googleSheetUrl: null }, // [NEW] googleSheetUrl
+                weights: [], nutrition: [], water: {}, exercise: [], favoriteFoods: [], photos: []
+            };
+
+            let weightChartInstance = null;
+            let toastTimer;
+            let viewingDate = getTodayString(); 
+            let calendarDisplayDate = new Date(); // [NEW] For calendar month view
+            let exerciseCalendarDisplayDate = new Date(); // [NEW] For exercise calendar month view
+            let chatHistory = []; // [NEW] For AI Chat
+
+            // --- SELECTORS ---
+            const pages = document.querySelectorAll('.app-page');
+            const navButtons = document.querySelectorAll('.nav-btn');
+            const headerTitle = document.getElementById('header-title');
+            const modalOverlay = document.getElementById('modal-overlay');
+            const modalContainer = document.getElementById('modal-container');
+            const modalContent = document.getElementById('modal-content');
+            const welcomeModalOverlay = document.getElementById('welcome-modal-overlay');
+            const welcomeModalContainer = document.getElementById('welcome-modal-container');
+            const welcomeModalContent = document.getElementById('welcome-modal-content');
+            const welcomeForm = document.getElementById('welcome-form');
+            const toast = document.getElementById('toast-notification');
+            const toastMessage = document.getElementById('toast-message');
+            // FAB
+            const fabAddBtn = document.getElementById('fab-add-btn');
+            // Dashboard
+            const dashCalIn = document.getElementById('dash-cal-in');
+            const dashCalGoal = document.getElementById('dash-cal-goal');
+            const dashCalBar = document.getElementById('dash-cal-bar');
+            const dashExIn = document.getElementById('dash-ex-in');
+            const dashExGoal = document.getElementById('dash-ex-goal');
+            const dashExBar = document.getElementById('dash-ex-bar');
+            const dashWaterIn = document.getElementById('dash-water-in');
+            const dashWaterGoal = document.getElementById('dash-water-goal');
+            const dashWaterBar = document.getElementById('dash-water-bar');
+            const dashCurrentWeight = document.getElementById('dash-current-weight');
+            const dashBmi = document.getElementById('dash-bmi');
+            const dashGoalWeightText = document.getElementById('dash-goal-weight-text');
+            const dashStreak = document.getElementById('dash-streak');
+            const progressBar = document.getElementById('progress-bar');
+            const progressText = document.getElementById('progress-text');
+            const progressStart = document.getElementById('progress-start');
+            const progressGoal = document.getElementById('progress-goal');
+            const reportWeight = document.getElementById('report-weight');
+            const reportCalories = document.getElementById('report-calories');
+            const reportExercise = document.getElementById('report-exercise');
+            // Weight Log
+            const weightHistoryBody = document.getElementById('weight-history-body');
+            const weightLogTableContainer = document.getElementById('weight-log-table-container');
+            const emptyStateWeight = document.getElementById('empty-state-weight');
+            const emptyWeightBtn = document.getElementById('empty-weight-btn');
+            const tabBtnHistory = document.getElementById('tab-btn-history');
+            const tabBtnPhotos = document.getElementById('tab-btn-photos');
+            const tabContentHistory = document.getElementById('tab-content-history');
+            const tabContentPhotos = document.getElementById('tab-content-photos');
+            const photoGalleryContainer = document.getElementById('photo-gallery-container');
+            const emptyStatePhotos = document.getElementById('empty-state-photos');
+            const emptyPhotoBtn = document.getElementById('empty-photo-btn');
+            // Exercise Log
+            // [REMOVED] Daily Nav
+            // const exPrevDayBtn = document.getElementById('ex-prev-day-btn');
+            // const exNextDayBtn = document.getElementById('ex-next-day-btn');
+            // const exDateDisplay = document.getElementById('ex-date-display');
+            // [NEW] Monthly Nav
+            const exPrevMonthBtn = document.getElementById('ex-prev-month-btn');
+            const exNextMonthBtn = document.getElementById('ex-next-month-btn');
+            const exMonthDisplay = document.getElementById('ex-month-display');
+            const exerciseCalendarContainer = document.getElementById('exercise-calendar');
+            
+            const exDateText = document.getElementById('ex-date-text');
+            const exTotalCalories = document.getElementById('ex-total-calories');
+            const exGoalCalories = document.getElementById('ex-goal-calories');
+            const exerciseHistoryBody = document.getElementById('exercise-history-body');
+            const exerciseLogTableContainer = document.getElementById('exercise-log-table-container');
+            const emptyStateExercise = document.getElementById('empty-state-exercise');
+            const emptyExerciseBtn = document.getElementById('empty-exercise-btn');
+            // Nutrition
+            const openFavModalBtn = document.getElementById('open-fav-modal-btn');
+            const foodLogList = document.getElementById('food-log-list');
+            const nutriCalories = document.getElementById('nutri-calories');
+            const nutriCaloriesGoal = document.getElementById('nutri-calories-goal');
+            const nutriProtein = document.getElementById('nutri-protein');
+            const nutriCarbs = document.getElementById('nutri-carbs');
+            const nutriFat = document.getElementById('nutri-fat');
+            const waterDecrement = document.getElementById('water-decrement');
+            const waterIncrement = document.getElementById('water-increment');
+            const waterCountDisplay = document.getElementById('water-count-display');
+            const waterGoalDisplay = document.getElementById('water-goal-display');
+            const emptyStateFood = document.getElementById('empty-state-food');
+            const emptyFoodBtn = document.getElementById('empty-food-btn');
+            const waterDateText = document.getElementById('water-date-text');
+            const foodDateText = document.getElementById('food-date-text');
+            // [NEW] Nutrition Calendar Selectors
+            const nutriPrevMonthBtn = document.getElementById('nutri-prev-month-btn');
+            const nutriNextMonthBtn = document.getElementById('nutri-next-month-btn');
+            const nutriMonthDisplay = document.getElementById('nutri-month-display');
+            const nutritionCalendarContainer = document.getElementById('nutrition-calendar');
+            // Profile
+            const profileGoalForm = document.getElementById('profile-goal-form');
+            const calculateBmiBmrBtn = document.getElementById('calculate-bmi-bmr');
+            const calculatorResultsDiv = document.getElementById('calculator-results');
+            const bmiResult = document.getElementById('bmi-result');
+            const bmiCategory = document.getElementById('bmi-category');
+            const bmrResult = document.getElementById('bmr-result');
+            const tdeeResult = document.getElementById('tdee-result');
+            const accordions = document.querySelectorAll('.accordion-toggle');
+            const exportDataBtn = document.getElementById('export-data-btn');
+            const importDataBtn = document.getElementById('import-data-btn');
+            const importFileInput = document.getElementById('import-file-input');
+            const darkModeToggle = document.getElementById('dark-mode-toggle');
+            const apiKeyInput = document.getElementById('api-key-input');
+            const saveApiKeyBtn = document.getElementById('save-api-key-btn');
+            // [NEW] Google Sheet Selectors
+            const googleSheetUrlInput = document.getElementById('google-sheet-url-input');
+            const saveGoogleSheetUrlBtn = document.getElementById('save-google-sheet-url-btn');
+            const showGoogleSheetSetupBtn = document.getElementById('show-google-sheet-setup-btn');
+            const syncGoogleSheetBtn = document.getElementById('sync-google-sheet-btn');
+            
+            // [NEW] Chat Selectors
+            const chatModalContainer = document.getElementById('chat-modal-container');
+            const closeChatBtn = document.getElementById('close-chat-btn');
+            const chatMessageList = document.getElementById('chat-message-list');
+            const chatSuggestionChips = document.getElementById('chat-suggestion-chips');
+            const chatForm = document.getElementById('chat-form');
+            const chatInput = document.getElementById('chat-input');
+
+
+            // --- UTILITY FUNCTIONS (ต่อ) ---
+            const getCurrentWeight = () => {
+                if (db.weights.length === 0) return null;
+                const sorted = [...db.weights].sort((a, b) => new Date(b.date) - new Date(a.date));
+                return sorted[0];
+            };
+
+            const saveData = () => localStorage.setItem(V13_DB_KEY, JSON.stringify(db)); // [NEW] v13
+
+            // [NEW] v13
+            const loadData = () => {
+                let data = null;
+                let migrated = false;
+                
+                const dataSources = [V13_DB_KEY, V12_DB_KEY, V10_DB_KEY, V9_DB_KEY, V8_DB_KEY, V7_DB_KEY, V5_DB_KEY, V4_DB_KEY];
+                
+                let foundKey = null;
+
+                for (const key of dataSources) {
+                    const loadedData = localStorage.getItem(key);
+                    if (loadedData) {
+                        data = loadedData;
+                        foundKey = key;
+                        console.log(`Loaded data from ${key}.`);
+                        break; 
+                    }
+                }
+
+                if (data) {
+                    db = JSON.parse(data);
+                    if (foundKey !== V13_DB_KEY) { 
+                        migrated = true;
+                    }
+                } else {
+                    console.log('No data found. Starting fresh.');
+                }
+
+                // Upgrade/Default (ตั้งค่าเริ่มต้นสำหรับโครงสร้าง v13)
+                db.profile = db.profile || { height: null, gender: 'male', age: null, goalWeight: null, activityLevel: 1.2 };
+                db.profile.waterGoal = db.profile.waterGoal || 8;
+                db.profile.theme = db.profile.theme || 'light'; 
+                db.profile.exerciseGoal = db.profile.exerciseGoal || 300; 
+                db.profile.apiKey = db.profile.apiKey || null;
+                db.profile.googleSheetUrl = db.profile.googleSheetUrl || null; // [NEW]
+                db.weights = db.weights || [];
+                db.nutrition = db.nutrition || [];
+                db.water = db.water || {};
+                db.exercise = db.exercise || [];
+                db.favoriteFoods = db.favoriteFoods || []; 
+                db.photos = db.photos || []; 
+                
+                db.weights.sort((a, b) => new Date(a.date) - new Date(b.date));
+                db.photos.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+                if (migrated) {
+                    console.log(`Migration complete. Saving as ${V13_DB_KEY}.`); // [NEW]
+                    saveData(); // บันทึกเป็น V13_DB_KEY
+                    // ลบของเก่าทั้งหมดทิ้ง
+                    [V4_DB_KEY, V5_DB_KEY, V7_DB_KEY, V8_DB_KEY, V9_DB_KEY, V10_DB_KEY, V12_DB_KEY].forEach(key => localStorage.removeItem(key)); // [NEW]
+                }
+            };
+            
+            // --- Dark Mode ---
+            const applyTheme = () => {
+                if (db.profile.theme === 'dark') {
+                    document.documentElement.classList.add('dark');
+                    darkModeToggle.querySelector('span:last-child').classList.add('translate-x-5');
+                } else {
+                    document.documentElement.classList.remove('dark');
+                    darkModeToggle.querySelector('span:last-child').classList.remove('translate-x-5');
+                }
+                if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 0);
+            };
+            darkModeToggle.addEventListener('click', () => {
+                db.profile.theme = db.profile.theme === 'light' ? 'dark' : 'light';
+                applyTheme();
+                saveData();
+                renderWeightChart(); 
+            });
+
+            // --- TOAST NOTIFICATION ---
+            const showToast = (message, isError = false) => {
+                clearTimeout(toastTimer);
+                toastMessage.innerText = message;
+                toast.className = 'show';
+                toast.classList.toggle('bg-red-500', isError);
+                toast.classList.toggle('bg-green-500', !isError);
+                toast.classList.add('text-white');
+                toastTimer = setTimeout(() => {
+                    toast.className = '';
+                    toast.classList.remove('bg-red-500', 'bg-green-500', 'text-white');
+                }, 2500);
+            };
+
+            // --- NAVIGATION ---
+            const showPage = (pageId) => {
+                pages.forEach(page => page.classList.remove('active'));
+                const pageEl = document.getElementById(pageId);
+                if(pageEl) pageEl.classList.add('active');
+                
+                // [MODIFIED] Reset viewingDate only if not on nutrition OR exercise page
+                if (pageId !== 'page-nutrition' && pageId !== 'page-exercise') {
+                    viewingDate = getTodayString(); 
+                }
+
+                // [NEW] Set calendar display date when switching to pages
+                if (pageId === 'page-nutrition') {
+                    // Ensure calendar shows the month of the currently viewed day
+                    calendarDisplayDate = new Date(viewingDate + 'T00:00:00');
+                }
+                if (pageId === 'page-exercise') {
+                    // [NEW] Ensure exercise calendar shows the month of the currently viewed day
+                    exerciseCalendarDisplayDate = new Date(viewingDate + 'T00:00:00');
+                }
+
+
+                // [NEW] Show FAB on all pages except profile
+                if (pageId === 'page-profile') {
+                    fabAddBtn.classList.remove('fab-visible');
+                } else {
+                    fabAddBtn.classList.add('fab-visible');
+                }
+                
+                if (typeof lucide !== 'undefined') setTimeout(() => lucide.createIcons(), 0);
+            };
+            
+            navButtons.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const pageId = btn.dataset.page;
+                    const title = btn.dataset.title;
+                    headerTitle.innerText = title;
+                    showPage(pageId);
+                    navButtons.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    switch (pageId) {
+                        case 'page-dashboard': renderDashboard(); break;
+                        case 'page-log': renderWeightLog(); break;
+                        case 'page-exercise': renderExerciseLog(); break;
+                        case 'page-nutrition': renderNutritionPage(); break;
+                        case 'page-profile': renderProfilePage(); break;
+                    }
+                });
+            });
+
+            // --- MODAL FUNCTIONS ---
+            const showModal = (contentHtml, size = 'default') => {
+                // Reset to default modal styles
+                modalContainer.classList.remove('action-sheet', 'modal-lg');
+                modalContainer.classList.add('items-center', 'p-4');
+                modalContent.classList.remove('action-sheet', 'p-6'); 
+                modalContent.classList.add('p-6'); // Default padding
+                
+                if (size === 'lg') {
+                    modalContainer.classList.add('modal-lg');
+                }
+
+                modalContent.innerHTML = contentHtml;
+                modalOverlay.classList.remove('hidden');
+                modalContainer.classList.remove('hidden');
+                setTimeout(() => {
+                    modalOverlay.classList.add('opacity-100');
+                    modalContent.classList.add('show');
+                    if (typeof lucide !== 'undefined') lucide.createIcons(); 
+                }, 10);
+            };
+
+            const showActionSheet = (contentHtml) => {
+                // Apply action sheet styles
+                modalContainer.classList.add('action-sheet');
+                modalContainer.classList.remove('items-center', 'p-4', 'modal-lg');
+                modalContent.classList.add('action-sheet');
+                modalContent.classList.remove('p-6'); // Remove default padding
+                
+                modalContent.innerHTML = contentHtml;
+                modalOverlay.classList.remove('hidden');
+                modalContainer.classList.remove('hidden');
+                setTimeout(() => {
+                    modalOverlay.classList.add('opacity-100');
+                    modalContent.classList.add('show'); // This will trigger the translateY(0)
+                    if (typeof lucide !== 'undefined') lucide.createIcons();
+                }, 10);
+            };
+
+            const hideModal = (callback = null) => {
+                modalOverlay.classList.remove('opacity-100');
+                modalContent.classList.remove('show');
+                setTimeout(() => {
+                    modalOverlay.classList.add('hidden');
+                    modalContainer.classList.add('hidden');
+                    modalContent.innerHTML = '';
+
+                    // Reset modal styles after hiding
+                    modalContainer.classList.remove('action-sheet', 'modal-lg');
+                    modalContainer.classList.add('items-center', 'p-4');
+                    modalContent.classList.remove('action-sheet');
+                    
+                    if (callback) {
+                        callback(); // Execute the callback after modal is hidden
+                    }
+                }, 300);
+            };
+            modalOverlay.addEventListener('click', () => hideModal());
+
+            // --- WELCOME MODAL ---
+            const showWelcomeModal = () => {
+                welcomeModalOverlay.classList.remove('hidden');
+                welcomeModalContainer.classList.remove('hidden');
+                setTimeout(() => {
+                    welcomeModalOverlay.classList.add('opacity-100');
+                    welcomeModalContent.classList.add('show');
+                }, 10);
+            };
+            const hideWelcomeModal = () => {
+                welcomeModalOverlay.classList.remove('opacity-100');
+                welcomeModalContent.classList.remove('show');
+                setTimeout(() => {
+                    welcomeModalOverlay.classList.add('hidden');
+                    welcomeModalContainer.classList.add('hidden');
+                }, 300);
+            };
+            welcomeForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const height = parseFloat(document.getElementById('welcome-height').value);
+                const age = parseInt(document.getElementById('welcome-age').value);
+                const currentWeight = parseFloat(document.getElementById('welcome-current-weight').value);
+                const goalWeight = parseFloat(document.getElementById('welcome-goal-weight').value);
+                if (height <= 0 || age <= 0 || currentWeight <= 0 || goalWeight <= 0 || !height || !age || !currentWeight || !goalWeight) {
+                    showToast("กรุณากรอกข้อมูลจริงให้ครบถ้วน", true);
+                    return;
+                }
+                db.profile.height = height; db.profile.age = age;
+                db.profile.gender = document.getElementById('welcome-gender').value;
+                db.profile.goalWeight = goalWeight;
+                db.profile.waterGoal = 8; db.profile.activityLevel = 1.2; db.profile.theme = 'light'; db.profile.exerciseGoal = 300; db.profile.apiKey = null; db.profile.googleSheetUrl = null; // [NEW]
+                db.weights = [{ date: getTodayString(), weight: currentWeight, id: crypto.randomUUID() }];
+                saveData(); hideWelcomeModal(); loadApp();
+            });
+
+            // --- [NEW] CHAT MODAL FUNCTIONS ---
+            const showChatModal = () => {
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+                chatModalContainer.classList.remove('hidden');
+                setTimeout(() => chatModalContainer.classList.add('show'), 10);
+                chatInput.focus();
+            };
+            const hideChatModal = () => {
+                chatModalContainer.classList.remove('show');
+                setTimeout(() => chatModalContainer.classList.add('hidden'), 400);
+            };
+            fabAddBtn.addEventListener('click', showChatModal);
+            closeChatBtn.addEventListener('click', hideChatModal);
+
+            const addChatMessage = (text, sender = 'user', payload = null, intent = null) => {
+                const div = document.createElement('div');
+                div.className = `chat-bubble ${sender}`;
+                div.innerHTML = text; // [FIX] Use innerHTML to render line breaks
+
+                if (payload && intent) {
+                    // [FIX] Corrected syntax error from 'const-' to 'const'
+                    const buttonsDiv = document.createElement('div');
+                    buttonsDiv.className = 'chat-confirmation-buttons';
+                    buttonsDiv.innerHTML = `
+                        <button class="bg-green-500 text-white" data-intent="${intent}">ยืนยัน</button>
+                        <button class="bg-gray-300 text-gray-800 dark:bg-gray-600 dark:text-gray-200">ยกเลิก</button>
+                    `;
+                    div.appendChild(buttonsDiv);
+                    
+                    buttonsDiv.querySelector('button.bg-green-500').addEventListener('click', () => {
+                        saveDataFromPayload(payload, intent);
+                        buttonsDiv.remove();
+                    });
+                    buttonsDiv.querySelector('button.bg-gray-300').addEventListener('click', () => {
+                        addChatMessage('โอเคครับ ยกเลิกการบันทึกแล้ว', 'bot');
+                        buttonsDiv.remove();
+                    });
+                }
+                
+                chatMessageList.appendChild(div);
+                chatMessageList.scrollTop = chatMessageList.scrollHeight;
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            };
+
+            const showChatLoading = (show) => {
+                const loadingBubble = document.getElementById('loading-bubble');
+                if (show) {
+                    if (loadingBubble) return; // Already showing
+                    const div = document.createElement('div');
+                    div.className = 'chat-bubble bot loading';
+                    div.id = 'loading-bubble';
+                    div.innerHTML = `<div class="dot-flashing"></div>`;
+                    chatMessageList.appendChild(div);
+                    chatMessageList.scrollTop = chatMessageList.scrollHeight;
+                } else {
+                    if (loadingBubble) loadingBubble.remove();
+                }
+            };
+            
+            chatSuggestionChips.addEventListener('click', (e) => {
+                if (e.target.classList.contains('suggestion-chip')) {
+                    const text = e.target.innerText;
+                    chatInput.value = text;
+                    chatForm.requestSubmit();
+                }
+            });
+
+            // --- GEMINI API FUNCTIONS ---
+            async function fetchWithRetry(url, options, retries = 3, delay = 1000) {
+                for (let i = 0; i < retries; i++) {
+                    try {
+                        const response = await fetch(url, options);
+                        if (response.ok) return response;
+                        if (response.status >= 400 && response.status < 500) throw new Error(`Client error: ${response.status}`);
+                    } catch (error) { console.error(`Attempt ${i + 1} failed: ${error.message}`); }
+                    await new Promise(resolve => setTimeout(resolve, delay * (2 ** i)));
+                }
+                throw new Error("API request failed after all retries.");
+            }
+
+            // This is the main function used by modals
+            async function callGeminiAPI(text, schema, systemPrompt) {
+                const apiKey = db.profile.apiKey || ""; 
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+                
+                const payload = {
+                    contents: [{ parts: [{ text }] }],
+                    systemInstruction: { parts: [{ text: systemPrompt }] },
+                    generationConfig: {
+                        responseMimeType: "application/json",
+                        responseSchema: schema
+                    }
+                };
+                const response = await fetchWithRetry(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                const result = await response.json();
+                const content = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!content) throw new Error("No content received from AI.");
+                return content; 
+            }
+            
+            // [NEW] This function is used by the Chatbot
+            async function callGeminiChatAPI(history, schema, systemPrompt) {
+                const apiKey = db.profile.apiKey || ""; 
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+                
+                const payload = {
+                    contents: history,
+                    systemInstruction: { parts: [{ text: systemPrompt }] },
+                    generationConfig: {
+                        responseMimeType: "application/json",
+                        responseSchema: schema
+                    }
+                };
+                const response = await fetchWithRetry(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                const result = await response.json();
+                const content = result.candidates?.[0]?.content?.parts?.[0]?.text;
+                if (!content) throw new Error("No content received from AI.");
+                return content; 
+            }
+
+            // [NEW] Chat Submit Handler
+            const handleChatSubmit = async (e) => {
+                e.preventDefault();
+                const userText = chatInput.value.trim();
+                if (!userText) return;
+
+                if (!db.profile.apiKey) {
+                    showToast("กรุณาตั้งค่า Gemini API Key ในหน้าโปรไฟล์ก่อน", true);
+                    hideChatModal();
+                    showPage('page-profile');
+                    navButtons.forEach(b => b.classList.remove('active'));
+                    document.querySelector('.nav-btn[data-page="page-profile"]').classList.add('active');
+                    headerTitle.innerText = 'โปรไฟล์';
+                    document.getElementById('api-key-input').focus();
+                    return;
+                }
+
+                addChatMessage(userText, 'user');
+                chatInput.value = '';
+                showChatLoading(true);
+
+                // Build context and history
+                const context = buildChatContext();
+                const promptText = `นี่คือข้อมูลสรุปของผม: ${context}\n\nคำถาม/คำสั่งของผม: ${userText}`;
+                chatHistory.push({ role: 'user', parts: [{ text: promptText }] });
+                
+                // Define Schema
+                const schema = {
+                    type: "OBJECT",
+                    properties: {
+                        // [FIX] เพิ่ม "add_weight" ใน enum
+                        "intent": { "type": "STRING", "enum": ["answer_question", "add_food", "add_exercise", "add_weight", "clarify", "unknown"] },
+                        "response_text": { "type": "STRING" },
+                        "data_payload": {
+                            type: "OBJECT",
+                            properties: {
+                                "item": { "type": "STRING" },
+                                "calories": { "type": "NUMBER" },
+                                "protein": { "type": "NUMBER" },
+                                "carbs": { "type": "NUMBER" },
+                                "fat": { "type": "NUMBER" },
+                                "duration": { "type": "NUMBER" },
+                                "weight": { "type": "NUMBER" }, // [FIX] เพิ่ม "weight"
+                                "date": { "type": "STRING" }
+                            }
+                        },
+                        "requires_confirmation": { "type": "BOOLEAN" }
+                    },
+                    required: ["intent", "response_text"]
+                };
+
+                // [FIX] อัปเดต System Prompt
+                const systemPrompt = `คุณคือ 'Dr. Fit' ผู้ช่วยสุขภาพ AI ที่เป็นมิตรและชาญฉลาด พูดภาษาไทย วันนี้คือ ${getTodayString()}.
+1.  วิเคราะห์คำถามของผู้ใช้ (ซึ่งรวม context สรุปของพวกเขาไว้แล้ว)
+2.  **Intent 'answer_question'**: สำหรับคำถามสุขภาพ, โภชนาการ, การออกกำลังกายทั่วไป หรือการถามข้อมูลจาก context (เช่น "น้ำหนักเท่าไหร่?", "วันนี้กินไปกี่แคล?"). ให้ตอบคำถามใน \`response_text\`.
+3.  **Intent 'add_food' / 'add_exercise' / 'add_weight'**: เมื่อผู้ใช้สั่งให้บันทึกข้อมูล (เช่น "กินข้าวมันไก่", "วิ่ง 30 นาที", "บันทึกน้ำหนัก 75.5 กก.").
+    * สำหรับ 'add_food'/'add_exercise': คุณต้องเกลาคำ (เช่น "วิ่ง 30 นาที" -> "วิ่ง, 30 นาที") และประเมินแคลอรี่/ข้อมูลอื่นๆ. เติมข้อมูลใน \`data_payload\`.
+    * สำหรับ 'add_weight': ให้เติม \`data_payload.weight\` และ \`data_payload.date\`.
+    * ตั้ง \`date\` เป็น ${getTodayString()} เว้นแต่จะระบุ (เช่น "เมื่อวานนี้" = ${addDays(getTodayString(), -1)}).
+    * ตั้ง \`requires_confirmation = true\`.
+    * \`response_text\` ต้องเป็นคำถามยืนยัน (เช่น "รับทราบครับ! 'ข้าวมันไก่ 1 จาน' ประมาณ 600 kcal. ยืนยันการบันทึกนะครับ?" หรือ "รับทราบครับ! บันทึกน้ำหนัก ${getTodayString()} ที่ 75.5 กก. นะครับ?").
+4.  **Intent 'clarify' / 'unknown'**: หากไม่เข้าใจ.
+5.  **สำคัญมาก**: ตอบกลับเป็น JSON object ที่ตรงตาม schema เท่านั้น`;
+
+                try {
+                    const jsonString = await callGeminiChatAPI(chatHistory, schema, systemPrompt);
+                    const response = JSON.parse(jsonString);
+                    
+                    // Add AI's JSON response (as string) to history for context
+                    chatHistory.push({ role: 'model', parts: [{ text: jsonString }] });
+                    
+                    showChatLoading(false);
+                    addChatMessage(response.response_text.replace(/\n/g, '<br>'), 'bot', response.requires_confirmation ? response.data_payload : null, response.intent);
+
+                } catch (error) {
+                    console.error("Gemini Chat API Error:", error);
+                    showChatLoading(false);
+                    addChatMessage("ขออภัยครับ เกิดข้อผิดพลาดในการประมวลผล กรุณาลองอีกครั้ง", 'bot');
+                    // Remove last user message from history on error
+                    chatHistory.pop();
+                }
+            };
+            chatForm.addEventListener('submit', handleChatSubmit);
+
+            // [FIX] อัปเดตฟังก์ชันนี้ให้รองรับ 'add_weight'
+            const saveDataFromPayload = (payload, intent) => {
+                const date = payload.date || getTodayString();
+                if (intent === 'add_food') {
+                    const newFood = {
+                        id: crypto.randomUUID(),
+                        date: date,
+                        item: payload.item || 'N/A',
+                        calories: payload.calories || 0,
+                        protein: payload.protein || 0,
+                        carbs: payload.carbs || 0,
+                        fat: payload.fat || 0,
+                    };
+                    db.nutrition.push(newFood);
+                    addChatMessage(`บันทึก '${newFood.item}' (${newFood.calories} kcal) ให้เรียบร้อยแล้วครับ!`, 'bot');
+                } 
+                else if (intent === 'add_exercise') {
+                    const newExercise = {
+                        id: crypto.randomUUID(),
+                        date: date,
+                        type: payload.item || 'N/A',
+                        duration: payload.duration || 0,
+                        calories: payload.calories || 0,
+                    };
+                    db.exercise.push(newExercise);
+                    addChatMessage(`บันทึก '${newExercise.type}' (${newExercise.calories} kcal) ให้เรียบร้อยแล้วครับ!`, 'bot');
+                }
+                // [FIX] เพิ่มการบันทึกน้ำหนัก
+                else if (intent === 'add_weight') {
+                    const newWeight = parseFloat(payload.weight);
+                    if (!newWeight || newWeight <= 0) {
+                        addChatMessage('ค่าน้ำหนักดูไม่ถูกต้องนะครับ', 'bot');
+                        return; // ไม่ต้อง save
+                    }
+                    
+                    // ตรวจสอบว่ามีข้อมูลในวันนั้นหรือยัง
+                    const existingIndex = db.weights.findIndex(w => w.date == date);
+                    if (existingIndex > -1) {
+                        // ถ้ามี ให้อัปเดต
+                        db.weights[existingIndex] = { ...db.weights[existingIndex], weight: newWeight };
+                        addChatMessage(`อัปเดตน้ำหนักวันที่ ${formatLocalDate(date)} เป็น ${newWeight} กก. แล้วครับ!`, 'bot');
+                    } else {
+                        // ถ้าไม่มี ให้เพิ่มใหม่
+                        db.weights.push({ date: date, weight: newWeight, id: crypto.randomUUID() });
+                        addChatMessage(`บันทึกน้ำหนักวันที่ ${formatLocalDate(date)} ที่ ${newWeight} กก. ให้เรียบร้อยแล้วครับ!`, 'bot');
+                    }
+                    db.weights.sort((a, b) => new Date(a.date) - new Date(b.date));
+                }
+                saveData();
+                renderAll(); // Update all dashboards
+            };
+            
+            const buildChatContext = () => {
+                const current = getCurrentWeight();
+                const today = getTodayString();
+                const todayNutrition = db.nutrition.filter(item => item.date === today);
+                const totalCaloriesIn = todayNutrition.reduce((sum, item) => sum + item.calories, 0);
+                const todayExercise = db.exercise.filter(item => item.date === today);
+                const totalCaloriesOut = todayExercise.reduce((sum, item) => sum + item.calories, 0);
+                const todayWater = db.water[today] || 0;
+                
+                let context = `
+- น้ำหนักปัจจุบัน: ${current ? current.weight : 'N/A'} กก. (เป้าหมาย: ${db.profile.goalWeight || 'N/A'} กก.)
+- ส่วนสูง: ${db.profile.height || 'N/A'} ซม., อายุ: ${db.profile.age || 'N/A'} ปี, เพศ: ${db.profile.gender || 'N/A'}
+- วันนี้ (${today}):
+  - แคลอรี่ที่ทาน: ${totalCaloriesIn.toFixed(0)} kcal
+  - แคลอรี่ที่เผาผลาญ: ${totalCaloriesOut.toFixed(0)} kcal
+  - ดื่มน้ำ: ${todayWater} / ${db.profile.waterGoal || 8} แก้ว
+`;
+                return context.replace(/\n/g, ' ');
+            };
+
+            // This function is for the old modal AI button, not chat
+            async function handleGeminiCalculation(e) {
+                // ... (existing function) ...
+                const btn = e.currentTarget;
+                const foodItemInput = document.getElementById('food-item');
+                const foodText = foodItemInput.value;
+
+                if (!foodText) { showToast("กรุณาป้อนชื่ออาหารก่อนคำนวณ", true); return; }
+                if (!db.profile.apiKey) {
+                    showToast("กรุณาตั้งค่า Gemini API Key ในหน้าโปรไฟล์ก่อน", true);
+                    hideModal();
+                    showPage('page-profile');
+                    navButtons.forEach(b => b.classList.remove('active'));
+                    document.querySelector('.nav-btn[data-page="page-profile"]').classList.add('active');
+                    headerTitle.innerText = 'โปรไฟล์';
+                    document.getElementById('api-key-input').focus();
+                    return;
+                }
+
+                const originalIcon = btn.innerHTML;
+                btn.disabled = true;
+                btn.innerHTML = `<i data-lucide="loader-2" class="w-5 h-5 spinner"></i>`;
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+
+                try {
+                    const schema = { 
+                        type: "OBJECT", 
+                        properties: { 
+                            "corrected_text": { "type": "STRING" },
+                            "calories": { "type": "NUMBER" }, 
+                            "protein": { "type": "NUMBER" }, 
+                            "carbs": { "type": "NUMBER" }, 
+                            "fat": { "type": "NUMBER" } 
+                        }, 
+                        required: ["corrected_text", "calories", "protein", "carbs", "fat"] 
+                    };
+                    const systemPrompt = "คุณคือผู้ช่วยนักโภชนาการที่เป็นประโยชน์ ผู้ใช้จะป้อนรายการอาหาร (ภาษาไทยหรืออังกฤษ) ก่อนอื่น ให้แก้ไขการสะกดคำผิดและปรับปรุงคำอธิบายให้ชัดเจน **โดยคงภาษาเดิมของอินพุตไว้** ตัวอย่างเช่น หากอินพุตคือ 'กะเพราหมู' ผลลัพธ์ควรเป็น 'ข้าวผัดกะเพราหมูสับไข่ดาว' (เป็นภาษาไทย) ไม่ใช่ภาษาอังกฤษ จากนั้น คืนค่า JSON object เดียวที่มี: `corrected_text` (สตริงที่ปรับปรุงแล้ว), `calories` (ตัวเลข), `protein` (ตัวเลข), `carbs` (ตัวเลข), และ `fat` (ตัวเลข) ให้คืนค่า *เฉพาะ* JSON object เท่านั้น";
+                    
+                    const jsonString = await callGeminiAPI(foodText, schema, systemPrompt);
+                    const data = JSON.parse(jsonString);
+
+                    foodItemInput.value = data.corrected_text; 
+                    document.getElementById('food-calories').value = data.calories.toFixed(0);
+                    document.getElementById('food-protein').value = data.protein.toFixed(1);
+                    document.getElementById('food-carbs').value = data.carbs.toFixed(1);
+                    document.getElementById('food-fat').value = data.fat.toFixed(1);
+
+                    document.getElementById('macros-inputs').classList.remove('hidden');
+                    document.getElementById('toggle-macros').innerText = 'ซ่อนข้อมูลโภชนาการ';
+                    showToast("คำนวณ AI สำเร็จ!");
+                } catch (error) {
+                    console.error("Gemini API Error:", error);
+                    showToast("AI คำนวณไม่สำเร็จ กรุณาลองอีกครั้ง", true);
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = originalIcon;
+                    if (typeof lucide !== 'undefined') lucide.createIcons();
+                }
+            }
+
+            // This function is for the old modal AI button, not chat
+            async function handleGeminiExerciseCalculation(e) {
+                // ... (existing function) ...
+                const btn = e.currentTarget;
+                const exerciseItemInput = document.getElementById('exercise-type');
+                const exerciseText = exerciseItemInput.value;
+
+                if (!exerciseText) { showToast("กรุณาป้อนกิจกรรมก่อนคำนวณ", true); return; }
+                if (!db.profile.apiKey) {
+                    showToast("กรุณาตั้งค่า Gemini API Key ในหน้าโปรไฟล์ก่อน", true);
+                    hideModal();
+                    showPage('page-profile');
+                    navButtons.forEach(b => b.classList.remove('active'));
+                    document.querySelector('.nav-btn[data-page="page-profile"]').classList.add('active');
+                    headerTitle.innerText = 'โปรไฟล์';
+                    document.getElementById('api-key-input').focus();
+                    return;
+                }
+
+                const originalIcon = btn.innerHTML;
+                btn.disabled = true;
+                btn.innerHTML = `<i data-lucide="loader-2" class="w-5 h-5 spinner"></i>`;
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+
+                try {
+                    const schema = { 
+                        type: "OBJECT", 
+                        properties: { 
+                            "corrected_text": { "type": "STRING" },
+                            "calories_burned": { "type": "NUMBER" }, 
+                            "duration_minutes": { "type": "NUMBER" } 
+                        }, 
+                        required: ["corrected_text", "calories_burned", "duration_minutes"] 
+                    };
+                    const systemPrompt = "คุณคือผู้ช่วยด้านฟิตเนสที่เป็นประโยชน์ ผู้ใช้จะป้อนคำอธิบายการออกกำลังกาย (เช่น 'running 30 min', 'โยคะเบาๆ') ก่อนอื่น ให้แก้ไขการสะกดคำผิดและปรับปรุงคำอธิบาย (เช่น 'run 30 min' -> 'Running, 30 minutes') จากนั้น คืนค่า JSON object เดียวที่มี: `corrected_text` (สตริงที่ปรับปรุงแล้ว), `calories_burned` (ตัวเลข), และ `duration_minutes` (ตัวเลข) หากไม่ได้ระบุระยะเวลา ให้ประเมินตามเซสชันทั่วไป ให้คืนค่า *เฉพาะ* JSON object เท่านั้น";
+                    
+                    const jsonString = await callGeminiAPI(exerciseText, schema, systemPrompt);
+                    const data = JSON.parse(jsonString);
+
+                    exerciseItemInput.value = data.corrected_text;
+                    document.getElementById('exercise-duration').value = data.duration_minutes.toFixed(0);
+                    document.getElementById('exercise-calories').value = data.calories_burned.toFixed(0);
+                    showToast("คำนวณ AI สำเร็จ!");
+                } catch (error) {
+                    console.error("Gemini Exercise API Error:", error);
+                    showToast("AI คำนวณไม่สำเร็จ กรุณาลองอีกครั้ง", true);
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = originalIcon;
+                    if (typeof lucide !== 'undefined') lucide.createIcons();
+                }
+            }
+
+            // --- [NEW] GOOGLE SHEET SYNC FUNCTIONS ---
+            const showGoogleSheetSetupModal = () => {
+                const codeGs = `// --- รหัสลับ ---
+// *** สำคัญมาก: เปลี่ยน 'YOUR_SECRET_KEY' เป็นรหัสลับที่คุณตั้งเอง (ต้องตรงกับในแอป) ***
+const SECRET_KEY = "YOUR_SECRET_KEY";
+
+// --- ชื่อชีต ---
+const SHEET_NAME = "HealthTracker_DB";
+
+// --- ฟังก์ชันหลัก: ที่ Web App จะเรียกใช้ ---
+function doPost(e) {
+  try {
+    const payload = JSON.parse(e.postData.contents);
+
+    // ตรวจสอบรหัสลับ
+    if (payload.secret !== SECRET_KEY) {
+      return ContentService.createTextOutput(JSON.stringify({ "status": "error", "message": "Invalid secret key" }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    // ตรวจสอบ action
+    if (payload.action === 'syncData' && payload.data) {
+      const db = payload.data;
+      const ss = getSpreadsheet();
+      
+      // เขียนข้อมูลลงแต่ละแท็บ
+      writeProfileData(ss, db.profile);
+      writeArrayData(ss, "Weights", db.weights, ["date", "weight", "id"]);
+      writeArrayData(ss, "Nutrition", db.nutrition, ["date", "item", "calories", "protein", "carbs", "fat", "id"]);
+      writeArrayData(ss, "Exercise", db.exercise, ["date", "type", "duration", "calories", "id"]);
+      writeArrayData(ss, "Photos", db.photos, ["date", "url", "weight", "id"]);
+      writeWaterData(ss, db.water); // ฟังก์ชันพิเศษสำหรับ Water
+      
+      return ContentService.createTextOutput(JSON.stringify({ "status": "success", "message": "Data synced successfully" }))
+        .setMimeType(ContentService.MimeType.JSON);
+    } else {
+      throw new Error("Invalid action or missing data.");
+    }
+    
+  } catch (error) {
+    Logger.log("Error in doPost: " + error.message);
+    return ContentService.createTextOutput(JSON.stringify({ "status": "error", "message": error.message }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+// --- ฟังก์ชัน Setup: รันครั้งเดียวเพื่อสร้างชีต ---
+// *** กดปุ่ม "Run" (ปุ่มสามเหลี่ยม) ในเมนูบาร์เพื่อรันฟังก์ชันนี้ ***
+function setupDatabase() {
+  const ss = getSpreadsheet();
+  
+  // 1. Profile
+  const profileHeaders = ["Key", "Value", 
+    "height", "gender", "age", "goalWeight", "activityLevel", 
+    "waterGoal", "theme", "exerciseGoal", "apiKey", "googleSheetUrl"
+  ];
+  setupSheet("Profile", profileHeaders, ss);
+  
+  // 2. Weights
+  const weightsHeaders = ["date", "weight", "id"];
+  setupSheet("Weights", weightsHeaders, ss);
+  
+  // 3. Nutrition
+  const nutritionHeaders = ["date", "item", "calories", "protein", "carbs", "fat", "id"];
+  setupSheet("Nutrition", nutritionHeaders, ss);
+  
+  // 4. Exercise
+  const exerciseHeaders = ["date", "type", "duration", "calories", "id"];
+  setupSheet("Exercise", exerciseHeaders, ss);
+  
+  // 5. Photos
+  const photosHeaders = ["date", "url", "weight", "id"];
+  setupSheet("Photos", photosHeaders, ss);
+  
+  // 6. Water
+  const waterHeaders = ["date", "glasses"];
+  setupSheet("Water", waterHeaders, ss);
+  
+  Logger.log("Database setup complete in " + ss.getName());
+  SpreadsheetApp.getUi().alert('Database setup complete!');
+}
+
+// --- ฟังก์ชันช่วยเหลือ ---
+
+// หา หรือ สร้าง Spreadsheet หลัก
+function getSpreadsheet() {
+  const files = DriveApp.getFilesByName(SHEET_NAME);
+  if (files.hasNext()) {
+    const file = files.next();
+    Logger.log("Found existing sheet: " + file.getName());
+    return SpreadsheetApp.openById(file.getId());
+  } else {
+    Logger.log("Creating new sheet: " + SHEET_NAME);
+    const ss = SpreadsheetApp.create(SHEET_NAME);
+    // สร้างชีตเปล่าๆ ก่อน เพื่อให้สิทธิ์ (ถ้าจำเป็น)
+    ss.insertSheet("InitialSheet"); 
+    DriveApp.getFileById(ss.getId()); // ขอสิทธิ์ Drive
+    return ss;
+  }
+}
+
+// หา หรือ สร้าง Sheet (แท็บ) และตั้งค่า Headers
+function setupSheet(sheetName, headers, ss) {
+  let sheet = ss.getSheetByName(sheetName);
+  if (!sheet) {
+    sheet = ss.insertSheet(sheetName);
+    Logger.log("Created sheet: " + sheetName);
+  } else {
+    Logger.log("Found sheet: " + sheetName);
+  }
+  
+  sheet.clearContents().clearFormats();
+  const headerRange = sheet.getRange(1, 1, 1, headers.length);
+  headerRange.setValues([headers]);
+  headerRange.setFontWeight("bold");
+  sheet.setFrozenRows(1);
+}
+
+// เขียนข้อมูล Profile
+function writeProfileData(ss, profile) {
+  const sheet = ss.getSheetByName("Profile");
+  if (!sheet) return;
+  sheet.clearContents().clearFormats();
+  
+  const headers = ["height", "gender", "age", "goalWeight", "activityLevel", "waterGoal", "theme", "exerciseGoal", "apiKey", "googleSheetUrl"];
+  const values = [
+    profile.height || "",
+    profile.gender || "",
+    profile.age || "",
+    profile.goalWeight || "",
+    profile.activityLevel || "",
+    profile.waterGoal || "",
+    profile.theme || "",
+    profile.exerciseGoal || "",
+    profile.apiKey ? "******" : "", // Mask API key
+    profile.googleSheetUrl ? "******" : "" // Mask URL
+  ];
+  
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight("bold");
+  sheet.getRange(2, 1, 1, values.length).setValues([values]);
+}
+
+// เขียนข้อมูล (Array)
+function writeArrayData(ss, sheetName, dataArray, headers) {
+  const sheet = ss.getSheetByName(sheetName);
+  if (!sheet) return;
+  
+  sheet.clearContents().clearFormats();
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight("bold");
+  
+  if (dataArray && dataArray.length > 0) {
+    const values = dataArray.map(row => headers.map(header => row[header] || ""));
+    sheet.getRange(2, 1, values.length, values[0].length).setValues(values);
+  }
+}
+
+// เขียนข้อมูล Water (Object)
+function writeWaterData(ss, waterObject) {
+  const sheet = ss.getSheetByName("Water");
+  if (!sheet) return;
+  
+  sheet.clearContents().clearFormats();
+  const headers = ["date", "glasses"];
+  sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight("bold");
+  
+  if (waterObject) {
+    const dates = Object.keys(waterObject);
+    if (dates.length > 0) {
+      const values = dates.map(date => [date, waterObject[date]]);
+      sheet.getRange(2, 1, values.length, 2).setValues(values);
+    }
+  }
+}`;
+
+                const html = `
+                    <h2 class="text-2xl font-semibold mb-4 text-center">วิธีตั้งค่า Google Sheet Sync</h2>
+                    <div class="space-y-4 text-sm text-gray-700 dark:text-gray-300">
+                        <p>ทำตามขั้นตอนเหล่านี้เพื่อเชื่อมต่อแอปกับ Google Sheet ส่วนตัวของคุณ:</p>
+                        <ol class="list-decimal list-inside space-y-2">
+                            <li>ไปที่ <a href="https://script.google.com/home/start" target="_blank" class="text-indigo-600 dark:text-indigo-400 font-medium">script.google.com</a> และสร้าง "New project"</li>
+                            <li>ลบโค้ดเก่าในไฟล์ ` + "`Code.gs`" + ` ทิ้ง แล้วคัดลอกโค้ดทั้งหมดด้านล่างนี้ไปวางแทน</li>
+                            <li class="font-bold">สำคัญ: ในโค้ดที่เพิ่งวาง ให้เปลี่ยน ` + "`YOUR_SECRET_KEY`" + ` เป็นรหัสลับที่คุณตั้งเอง (เช่น "my-super-secret-123")</li>
+                            <li>
+                                <strong>สร้างฐานข้อมูล:</strong>
+                                <ul class="list-disc list-inside ml-4">
+                                    <li>ตรวจสอบว่าเลือกฟังก์ชัน ` + "`setupDatabase`" + ` ในเมนูด้านบน</li>
+                                    <li>กดปุ่ม "Run" (รูปสามเหลี่ยม)</li>
+                                    <li>Google จะขอสิทธิ์ (Authorization) ให้กดยอมรับ (Allow) เพื่อให้สคริปต์สร้างไฟล์ ` + "`HealthTracker_DB`" + ` ใน Google Drive ของคุณได้</li>
+                                </ul>
+                            </li>
+                            <li>
+                                <strong>Deploy เป็น Web App:</strong>
+                                <ul class="list-disc list-inside ml-4">
+                                    <li>คลิกปุ่ม "Deploy" (สีฟ้ามุมบนขวา) > "New deployment"</li>
+                                    <li>เลือกประเภท (รูปเฟือง) > "Web app"</li>
+                                    <li>ตั้งค่า "Who has access" เป็น <strong class="text-red-500">"Anyone"</strong> (ไม่ต้องกังวล, รหัสลับ ` + "`SECRET_KEY`" + ` ของคุณจะป้องกันคนอื่น)</li>
+                                    <li>กด "Deploy"</li>
+                                </ul>
+                            </li>
+                            <li>คัดลอก "Web App URL" ที่ได้ มากรอกในช่องด้านล่างของหน้านี้</li>
+                            <li>กลับมาที่หน้านี้ (Profile) กรอก URL และ ` + "`SECRET_KEY`" + ` (ที่คุณตั้งเอง) แล้วกด "บันทึก"</li>
+                        </ol>
+                        
+                        <h4 class="text-lg font-semibold pt-2">โค้ดสำหรับ ` + "`Code.gs`" + `</h4>
+                        <div class="code-block">
+                            <button class="copy-code-btn" id="copy-gs-code-btn">Copy</button>
+                            <pre><code id="gs-code-content">${codeGs.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</code></pre>
+                        </div>
+                        
+                        <h4 class="text-lg font-semibold pt-2">กรอกข้อมูลเชื่อมต่อ</h4>
+                        <div class="space-y-2">
+                            <label for="modal-google-sheet-url" class="block text-sm font-medium">Web App URL</label>
+                            <input type="url" id="modal-google-sheet-url" class="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700" placeholder="https://script.google.com/macros/s/...">
+                            
+                            <label for="modal-google-sheet-secret" class="block text-sm font-medium">Secret Key (ที่คุณตั้งเองใน ` + "`Code.gs`" + `)</label>
+                            <input type="password" id="modal-google-sheet-secret" class="block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700" placeholder="my-super-secret-123">
+                        </div>
+
+                        <div class="pt-4 flex justify-end space-x-3">
+                            <button type="button" id="cancel-setup-btn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg dark:bg-gray-600 dark:text-gray-200">ปิด</button>
+                            <button type="button" id="save-setup-btn" class="px-4 py-2 btn-gradient text-white rounded-lg">บันทึก URL และ Key</button>
+                        </div>
+                    </div>`;
+                
+                // ใช้ 'lg'
+                showModal(html, 'lg'); 
+
+                document.getElementById('copy-gs-code-btn').addEventListener('click', () => {
+                    navigator.clipboard.writeText(codeGs)
+                        .then(() => showToast('คัดลอกโค้ดแล้ว!'))
+                        .catch(err => showToast('คัดลอกไม่สำเร็จ', true));
+                });
+
+                document.getElementById('cancel-setup-btn').addEventListener('click', hideModal);
+
+                document.getElementById('save-setup-btn').addEventListener('click', () => {
+                    const url = document.getElementById('modal-google-sheet-url').value;
+                    const secret = document.getElementById('modal-google-sheet-secret').value;
+
+                    if (!url || !secret) {
+                        showToast('กรุณากรอก URL และ Secret Key', true);
+                        return;
+                    }
+                    if (!url.startsWith('https://script.google.com/macros/s/')) {
+                        showToast('URL ดูเหมือนจะไม่ถูกต้อง', true);
+                        return;
+                    }
+                    
+                    db.profile.googleSheetUrl = url;
+                    db.profile.googleSheetSecret = secret; // [NEW] บันทึก secret
+                    saveData();
+                    
+                    googleSheetUrlInput.value = url; // อัปเดต UI หลัก
+                    
+                    hideModal();
+                    showToast('บันทึก URL และ Secret Key สำเร็จ!');
+                });
+
+                // เติมค่าที่มีอยู่
+                if (db.profile.googleSheetUrl) {
+                    document.getElementById('modal-google-sheet-url').value = db.profile.googleSheetUrl;
+                }
+                if (db.profile.googleSheetSecret) {
+                    document.getElementById('modal-google-sheet-secret').value = db.profile.googleSheetSecret;
+                }
+            };
+            
+            showGoogleSheetSetupBtn.addEventListener('click', showGoogleSheetSetupModal);
+
+            saveGoogleSheetUrlBtn.addEventListener('click', () => {
+                const url = googleSheetUrlInput.value;
+                if (!url || !url.startsWith('https://script.google.com/macros/s/')) {
+                    showToast('URL ไม่ถูกต้อง หรือยังไม่ได้กรอก', true);
+                    return;
+                }
+                
+                // ถ้าบันทึก URL ที่นี่ แต่ยังไม่ตั้ง secret ให้ไปที่ modal
+                if (!db.profile.googleSheetSecret) {
+                    showToast('บันทึก URL แล้ว, กรุณาตั้งค่า Secret Key ด้วย', false);
+                    showGoogleSheetSetupModal();
+                    document.getElementById('modal-google-sheet-url').value = url;
+                    return;
+                }
+
+                db.profile.googleSheetUrl = url;
+                saveData();
+                showToast('บันทึก URL สำเร็จ!');
+            });
+
+            syncGoogleSheetBtn.addEventListener('click', async () => {
+                if (!db.profile.googleSheetUrl || !db.profile.googleSheetSecret) {
+                    showToast('กรุณาตั้งค่า URL และ Secret Key ก่อน (ในปุ่ม "วิธีตั้งค่า")', true);
+                    showGoogleSheetSetupModal();
+                    return;
+                }
+
+                const btn = syncGoogleSheetBtn;
+                const originalText = btn.innerHTML;
+                btn.disabled = true;
+                btn.innerHTML = `<i data-lucide="loader-2" class="w-5 h-5 spinner mx-auto"></i>`;
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+
+                try {
+                    const payload = {
+                        action: 'syncData',
+                        secret: db.profile.googleSheetSecret,
+                        data: db 
+                    };
+
+                    const response = await fetch(db.profile.googleSheetUrl, {
+                        method: 'POST',
+                        mode: 'no-cors', // [IMPORTANT] ใช้ no-cors เพราะ Apps Script response อาจถูกบล็อกโดย CORS
+                        cache: 'no-cache',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(payload),
+                        redirect: 'follow'
+                    });
+                    
+                    // [IMPORTANT] เมื่อใช้ 'no-cors' เราจะไม่สามารถอ่าน response.json() ได้
+                    // เราจะถือว่าถ้า fetch ไม่ error (เช่น network error) คือสำเร็จ
+                    // Google Apps Script จะยังคงทำงานแม้เราจะไม่ได้ response
+                    
+                    // if (!response.ok) { 
+                    //    throw new Error(`Network response was not ok (status: ${response.status})`);
+                    // }
+                    // const result = await response.json();
+                    
+                    // if (result.status === 'error') {
+                    //    throw new Error(result.message);
+                    // }
+
+                    showToast('ส่งข้อมูลซิงค์สำเร็จ!');
+
+                } catch (error) {
+                    console.error('Sync Error:', error);
+                    showToast(`เกิดข้อผิดพลาด: ${error.message}`, true);
+                } finally {
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                }
+            });
+
+            // --- RENDER FUNCTIONS ---
+            const renderAll = () => {
+                renderDashboard(); renderWeightLog(); renderExerciseLog(); renderNutritionPage(); renderProfilePage();
+            };
+
+            // 1. Dashboard
+            const renderDashboard = () => {
+                const current = getCurrentWeight(); const goal = db.profile.goalWeight; const height = db.profile.height;
+                const today = getTodayString();
+                
+                const todayNutrition = db.nutrition.filter(item => item.date === today);
+                const totalCaloriesIn = todayNutrition.reduce((sum, item) => sum + item.calories, 0);
+                const todayExercise = db.exercise.filter(item => item.date === today);
+                const totalCaloriesOut = todayExercise.reduce((sum, item) => sum + item.calories, 0);
+                const todayWater = db.water[today] || 0;
+                
+                const calGoal = calculateTDEE(calculateBMR(current?.weight, height, db.profile.age, db.profile.gender), db.profile.activityLevel) || 2000;
+                const exGoal = db.profile.exerciseGoal || 300;
+                const waterGoal = db.profile.waterGoal || 8;
+
+                dashCalIn.innerText = totalCaloriesIn.toFixed(0);
+                dashCalGoal.innerText = calGoal.toFixed(0);
+                let calPercent = calGoal > 0 ? Math.min(100, (totalCaloriesIn / calGoal) * 100) : 0;
+                dashCalBar.style.width = `${calPercent}%`;
+                dashCalBar.classList.toggle('bg-red-500', calPercent >= 100);
+                dashCalBar.classList.toggle('bg-green-500', calPercent < 100);
+                
+                dashExIn.innerText = totalCaloriesOut.toFixed(0);
+                dashExGoal.innerText = exGoal.toFixed(0);
+                let exPercent = exGoal > 0 ? Math.min(100, (totalCaloriesOut / exGoal) * 100) : 0;
+                dashExBar.style.width = `${exPercent}%`;
+
+                dashWaterIn.innerText = todayWater;
+                dashWaterGoal.innerText = waterGoal;
+                let waterPercent = waterGoal > 0 ? Math.min(100, (todayWater / waterGoal) * 100) : 0;
+                dashWaterBar.style.width = `${waterPercent}%`;
+
+                dashCurrentWeight.innerText = current ? current.weight : '-';
+                dashBmi.innerText = (current && height) ? calculateBMI(current.weight, height).toFixed(1) : '-';
+                dashGoalWeightText.innerText = goal || '-';
+                dashStreak.innerText = calculateWeightStreak();
+                renderProgressBar(current, goal);
+                renderWeightChart();
+                renderWeeklySummary();
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            };
+            
+            const renderWeeklySummary = () => {
+                const today = new Date(getTodayString() + 'T00:00:00');
+                const startOfThisWeek = new Date(new Date(today).setDate(today.getDate() - today.getDay() + (today.getDay() === 0 ? -6 : 1))); // Monday
+                // [FIX] แก้ไข ReferenceError: startOfThisWindow เป็น startOfThisWeek
+                const startOfLastWeek = new Date(new Date(startOfThisWeek).setDate(startOfThisWeek.getDate() - 7));
+                const endOfThisWeek = new Date(new Date(startOfThisWeek).setDate(startOfThisWeek.getDate() + 6));
+                
+                const getWeekData = (startDate, endDate) => {
+                    const startStr = startDate.toISOString().split('T')[0];
+                    const endStr = endDate.toISOString().split('T')[0];
+                    const weekWeights = db.weights.filter(w => w.date >= startStr && w.date <= endStr).sort((a,b) => new Date(a.date) - new Date(b.date));
+                    const weekNutrition = db.nutrition.filter(n => n.date >= startStr && n.date <= endStr);
+                    const weekExercise = db.exercise.filter(e => e.date >= startStr && e.date <= endStr);
+                    let weightChange = 0;
+                    if (weekWeights.length > 0) {
+                        const startWeight = db.weights.filter(w => w.date < startStr).sort((a,b) => new Date(b.date) - new Date(a.date))[0]?.weight || weekWeights[0].weight;
+                        const endWeight = weekWeights[weekWeights.length-1].weight;
+                        weightChange = endWeight - startWeight;
+                    }
+                    const totalCalories = weekNutrition.reduce((sum, item) => sum + item.calories, 0);
+                    const uniqueDaysEaten = [...new Set(weekNutrition.map(n => n.date))].length || 1;
+                    const avgCalories = totalCalories / uniqueDaysEaten;
+                    const totalExercise = weekExercise.reduce((sum, item) => sum + item.calories, 0);
+                    return { weightChange, avgCalories, totalExercise };
+                };
+                
+                const thisWeekData = getWeekData(startOfThisWeek, endOfThisWeek);
+                const lastWeekData = getWeekData(startOfLastWeek, new Date(new Date(startOfLastWeek).setDate(startOfLastWeek.getDate() + 6)));
+                
+                const formatChange = (change, unit) => {
+                    if (isNaN(change) || change === 0) return `<span class="text-gray-500 dark:text-gray-400">-</span>`;
+                    const prefix = change > 0 ? '+' : '';
+                    const color = change > 0 ? 'text-red-500' : 'text-green-500';
+                    return `<span class="${color}">${prefix}${change.toFixed(unit === 'kg' ? 1 : 0)} ${unit}</span>`;
+                };
+                reportWeight.innerHTML = formatChange(thisWeekData.weightChange, 'kg');
+                reportCalories.innerHTML = formatChange(thisWeekData.avgCalories - lastWeekData.avgCalories, 'kcal');
+                reportExercise.innerHTML = formatChange(thisWeekData.totalExercise - lastWeekData.totalExercise, 'kcal');
+            };
+
+            // [FIX 3/3] แก้ไขตรรกะการคำนวณ Streak ให้แม่นยำ
+            const calculateWeightStreak = () => {
+                const loggedDates = [...new Set(db.weights.map(w => w.date))].sort((a, b) => new Date(b.date) - new Date(a.date));
+                if (loggedDates.length === 0) return 0;
+
+                const today = new Date(getTodayString() + 'T00:00:00');
+                const yesterday = new Date(addDays(getTodayString(), -1) + 'T00:00:00');
+                const lastLog = new Date(loggedDates[0] + 'T00:00:00');
+
+                let checkDate = null;
+
+                if (lastLog.getTime() === today.getTime()) {
+                    checkDate = today;
+                } else if (lastLog.getTime() === yesterday.getTime()) {
+                    checkDate = yesterday;
+                } else {
+                    return 0; // ไม่ได้บันทึกวันนี้หรือเมื่อวาน, streak = 0
+                }
+
+                let streak = 0;
+                for (const dateStr of loggedDates) {
+                    const logDate = new Date(dateStr + 'T00:00:00');
+                    if (logDate.getTime() === checkDate.getTime()) {
+                        streak++;
+                        checkDate.setDate(checkDate.getDate() - 1); // ย้ายวันตรวจสอบไปวันก่อนหน้า
+                    } else if (logDate.getTime() < checkDate.getTime()) {
+                        break; // มีวันว่าง
+                    }
+                }
+                return streak;
+            };
+
+            const renderProgressBar = (current, goal) => {
+                if (!current || !goal || !db.weights.length) {
+                    progressText.innerText = 'ตั้งค่าเป้าหมายและบันทึกน้ำหนักก่อน'; progressBar.style.width = '0%'; progressStart.innerText = ''; progressGoal.innerText = ''; return;
+                }
+                const startWeight = db.weights[0].weight; const currentWeight = current.weight; const goalWeight = parseFloat(goal);
+                if (startWeight === goalWeight) {
+                    progressText.innerText = 'น้ำหนักเริ่มต้นและเป้าหมายเท่ากัน'; progressBar.style.width = '0%'; progressStart.innerText = `${startWeight} กก.`; progressGoal.innerText = `${goalWeight} กก.`; return;
+                }
+                const totalChangeNeeded = startWeight - goalWeight; const changeSoFar = startWeight - currentWeight;
+                let progressPercent = (changeSoFar / totalChangeNeeded) * 100; progressPercent = Math.max(0, Math.min(100, progressPercent));
+                progressBar.style.width = `${progressPercent}%`; progressStart.innerText = `${startWeight} กก.`; progressGoal.innerText = `${goalWeight} กก.`;
+                const remaining = (currentWeight - goalWeight).toFixed(1);
+                if (progressPercent >= 100 && totalChangeNeeded > 0) { progressText.innerText = 'ยินดีด้วย! คุณบรรลุเป้าหมายแล้ว!'; }
+                else if (progressPercent >= 100 && totalChangeNeeded < 0) { progressText.innerText = 'ยินดีด้วย! คุณบรรลุเป้าหมายแล้ว!'; }
+                else if (remaining > 0) { progressText.innerText = `อีก ${remaining} กก. เพื่อถึงเป้าหมาย!`; }
+                else if (remaining < 0) { progressText.innerText = `อีก ${Math.abs(remaining)} กก. เพื่อถึงเป้าหมาย!`; }
+                else { progressText.innerText = 'คุณบรรลุเป้าหมายพอดี!'; }
+            };
+            const renderWeightChart = () => {
+                const ctx = document.getElementById('weightChart').getContext('2d');
+                const sortedWeights = [...db.weights].sort((a, b) => new Date(a.date) - new Date(b.date));
+                const labels = sortedWeights.map(w => formatLocalDate(w.date, { day: 'numeric', month: 'short' }));
+                const data = sortedWeights.map(w => w.weight);
+                if (weightChartInstance) { weightChartInstance.destroy(); }
+                const isDark = db.profile.theme === 'dark';
+                Chart.defaults.color = isDark ? '#9CA3AF' : '#6B7280';
+                weightChartInstance = new Chart(ctx, {
+                    type: 'line',
+                    data: { labels: labels, datasets: [{ label: 'น้ำหนัก (กก.)', data: data, borderColor: isDark ? '#A5B4FC' : '#8B5CF6', backgroundColor: isDark ? 'rgba(165, 180, 252, 0.1)' : 'rgba(139, 92, 246, 0.1)', fill: true, tension: 0.3, pointRadius: 4, pointBackgroundColor: isDark ? '#A5B4FC' : '#8B5CF6' }] },
+                    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: false, grid: { color: isDark ? '#374151' : '#E5E7EB' } }, x: { grid: { display: false } } }, plugins: { legend: { display: false } }, interaction: { intersect: false, mode: 'index' } }
+                });
+            };
+
+            // 2. Weight Log
+            const renderWeightLog = () => {
+                const activeTab = document.querySelector('#page-log .tab-btn.active').dataset.tab;
+                if (activeTab === 'history') { renderWeightHistory(); } else { renderPhotoGallery(); }
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            };
+            const renderWeightHistory = () => {
+                if (db.weights.length === 0) { weightLogTableContainer.style.display = 'none'; emptyStateWeight.style.display = 'block'; }
+                else {
+                    weightLogTableContainer.style.display = 'block'; emptyStateWeight.style.display = 'none';
+                    weightHistoryBody.innerHTML = ''; 
+                    const sortedWeights = [...db.weights].sort((a, b) => new Date(b.date) - new Date(a.date));
+                    sortedWeights.forEach(entry => {
+                        const tr = document.createElement('tr');
+                        tr.className = "hover:bg-gray-50 dark:hover:bg-gray-800 transition";
+                        tr.innerHTML = `<td class="px-4 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">${formatLocalDate(entry.date)}</td><td class="px-4 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">${entry.weight} กก.</td><td class="px-4 py-4 whitespace-nowrap text-right text-sm font-medium"><button class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400 dark:hover:text-indigo-300" data-id="${entry.id}"><i data-lucide="edit" class="w-4 h-4"></i></button><button class="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300 ml-4" data-id="${entry.id}"><i data-lucide="trash-2" class="w-4 h-4"></i></button></td>`;
+                        tr.querySelector('button.text-indigo-600').addEventListener('click', (e) => { const entryToEdit = db.weights.find(w => w.id == e.currentTarget.dataset.id); if (entryToEdit) showWeightModal(entryToEdit.date, entryToEdit.weight, entryToEdit.id); });
+                        tr.querySelector('button.text-red-600').addEventListener('click', (e) => deleteWeightEntry(e.currentTarget.dataset.id));
+                        weightHistoryBody.appendChild(tr);
+                    });
+                }
+            };
+            const renderPhotoGallery = () => {
+                if (db.photos.length === 0) { photoGalleryContainer.innerHTML = ''; photoGalleryContainer.style.display = 'none'; emptyStatePhotos.style.display = 'block'; } 
+                else {
+                    photoGalleryContainer.style.display = 'grid'; emptyStatePhotos.style.display = 'none';
+                    photoGalleryContainer.innerHTML = '';
+                    db.photos.forEach(photo => {
+                        const card = document.createElement('div');
+                        card.className = 'photo-card dark:bg-slate-800';
+                        card.innerHTML = `<img src="${photo.url}" alt="Progress photo" onerror="this.src='https://placehold.co/400x400/6366f1/white?text=Error'">
+                            <div class="photo-card-info"><p class="font-semibold">${formatLocalDate(photo.date)}</p><p class="text-sm text-gray-600 dark:text-gray-400">${photo.weight} กก.</p><button class="text-red-500 text-xs mt-2" data-id="${photo.id}"><i data-lucide="trash-2" class="w-3 h-3 inline-block mr-1"></i>ลบรูปภาพ</button></div>`;
+                        card.querySelector('button').addEventListener('click', (e) => {
+                            db.photos = db.photos.filter(p => p.id !== e.currentTarget.dataset.id);
+                            saveData(); renderPhotoGallery();
+                        });
+                        photoGalleryContainer.appendChild(card);
+                    });
+                }
+            };
+            [tabBtnHistory, tabBtnPhotos].forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    tabBtnHistory.classList.remove('active'); tabBtnPhotos.classList.remove('active');
+                    e.currentTarget.classList.add('active');
+                    const tab = e.currentTarget.dataset.tab;
+                    if (tab === 'history') {
+                        tabContentHistory.classList.add('active'); tabContentPhotos.classList.remove('active');
+                        renderWeightHistory();
+                    } else {
+                        tabContentHistory.classList.remove('active'); tabContentPhotos.classList.add('active');
+                        renderPhotoGallery();
+                    }
+                    if (typeof lucide !== 'undefined') lucide.createIcons();
+                });
+            });
+            const showWeightModal = (date = getTodayString(), weight = '', id = null) => {
+                const title = id ? 'แก้ไขบันทึกน้ำหนัก' : 'เพิ่มบันทึกน้ำหนัก';
+                const html = `<h2 class="text-xl font-semibold mb-4">${title}</h2><form id="weight-form"><input type="hidden" id="weight-id" value="${id || ''}"><div class="mb-4"><label for="weight-date" class="block text-sm font-medium text-gray-700 dark:text-gray-300">วันที่</label><input type="date" id="weight-date" value="${date}" class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700" required></div><div class="mb-6"><label for="weight-input" class="block text-sm font-medium text-gray-700 dark:text-gray-300">น้ำหนัก (กก.)</label><input type="number" step="0.1" id="weight-input" value="${weight}" class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700" required></div><div class="flex justify-end space-x-3"><button type="button" id="cancel-btn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 dark:bg-gray-600 dark:text-gray-200 dark:hover:bg-gray-500">ยกเลิก</button><button type="submit" class="px-4 py-2 btn-gradient text-white rounded-lg">บันทึก</button></div></form>`;
+                showModal(html);
+                document.getElementById('weight-form').addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    const entryId = document.getElementById('weight-id').value;
+                    const newDate = document.getElementById('weight-date').value;
+                    const newWeight = parseFloat(document.getElementById('weight-input').value);
+                    if (!newWeight || newWeight <= 0) { showToast('กรุณาใส่น้ำหนักที่ถูกต้อง (มากกว่า 0)', true); return; }
+                    const existingIndex = db.weights.findIndex(w => w.id == entryId);
+                    if (existingIndex > -1) { db.weights[existingIndex] = { ...db.weights[existingIndex], date: newDate, weight: newWeight }; } 
+                    else { db.weights.push({ date: newDate, weight: newWeight, id: crypto.randomUUID() }); }
+                    db.weights.sort((a, b) => new Date(a.date) - new Date(b.date));
+                    saveData(); renderWeightHistory(); renderDashboard(); hideModal(); showToast('บันทึกน้ำหนักสำเร็จ!');
+                });
+                document.getElementById('cancel-btn').addEventListener('click', () => hideModal());
+            };
+            emptyWeightBtn.addEventListener('click', () => {
+                const today = getTodayString(); const lastWeight = getCurrentWeight() ? getCurrentWeight().weight : '';
+                showWeightModal(today, lastWeight);
+            });
+            const showPhotoModal = () => {
+                const today = getTodayString(); const current = getCurrentWeight(); const weight = current ? current.weight : '';
+                const html = `<h2 class="text-xl font-semibold mb-4">เพิ่มรูปถ่ายความคืบหน้า</h2><form id="photo-form" class="space-y-3"><div><label for="photo-date" class="block text-sm font-medium text-gray-700 dark:text-gray-300">วันที่</label><input type="date" id="photo-date" value="${today}" class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700" required></div><div><label for="photo-weight" class="block text-sm font-medium text-gray-700 dark:text-gray-300">น้ำหนัก (กก.)</label><input type="number" step="0.1" id="photo-weight" value="${weight}" class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700" required></div><div><label for="photo-url" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Image URL</label><input type="url" id="photo-url" class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700" required placeholder="https://..."></div><p class="text-xs text-gray-500 dark:text-gray-400">กรุณาอัปโหลดรูปและวางลิงก์ (Image Address) ที่นี่</p><div class="pt-4 flex justify-end space-x-3"><button type="button" id="cancel-btn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg dark:bg-gray-600 dark:text-gray-200">ยกเลิก</button><button type="submit" class="px-4 py-2 btn-gradient text-white rounded-lg">บันทึกรูป</button></div></form>`;
+                showModal(html);
+                document.getElementById('photo-form').addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    const url = document.getElementById('photo-url').value; const date = document.getElementById('photo-date').value; const weight = parseFloat(document.getElementById('photo-weight').value);
+                    if (!url || !date || !weight || weight <= 0) { showToast('กรุณากรอกข้อมูลให้ครบถ้วนและถูกต้อง', true); return; }
+                    db.photos.push({ id: crypto.randomUUID(), date, url, weight });
+                    db.photos.sort((a, b) => new Date(b.date) - new Date(a.date));
+                    saveData(); renderPhotoGallery(); hideModal(); showToast('บันทึกรูปภาพสำเร็จ!');
+                });
+                document.getElementById('cancel-btn').addEventListener('click', () => hideModal());
+            };
+            emptyPhotoBtn.addEventListener('click', showPhotoModal);
+            const deleteWeightEntry = (id) => {
+                db.weights = db.weights.filter(w => w.id != id); saveData(); renderWeightHistory(); renderDashboard(); showToast('ลบข้อมูลแล้ว', true);
+            };
+
+            // 3. Exercise Log
+            const renderExerciseLog = () => {
+                const navDateStr = formatNavDate(viewingDate);
+                // [REMOVED] exDateDisplay.innerText = navDateStr;
+                exDateText.innerText = navDateStr; // This is for the card title
+                // [REMOVED] Daily nav button logic
+                
+                // [NEW] Call calendar renderer
+                renderExerciseCalendar();
+
+                const dayExercise = db.exercise.filter(ex => ex.date === viewingDate);
+                const totalCals = dayExercise.reduce((sum, item) => sum + item.calories, 0);
+                exTotalCalories.innerText = totalCals.toFixed(0);
+                exGoalCalories.innerText = db.profile.exerciseGoal || 300;
+
+                if (dayExercise.length === 0) {
+                    exerciseLogTableContainer.style.display = 'none'; emptyStateExercise.style.display = 'block';
+                } else {
+                    exerciseLogTableContainer.style.display = 'block'; emptyStateExercise.style.display = 'none';
+                    exerciseHistoryBody.innerHTML = '';
+                    dayExercise.forEach(entry => {
+                        const tr = document.createElement('tr');
+                        tr.className = "hover:bg-gray-50 dark:hover:bg-gray-800 transition";
+                        tr.innerHTML = `<td class="px-3 py-4 text-sm font-medium text-gray-900 dark:text-gray-100">${entry.type}</td><td class="px-3 py-4 text-sm text-gray-700 dark:text-gray-300">${entry.duration}</td><td class="px-3 py-4 text-sm text-gray-700 dark:text-gray-300">${entry.calories}</td><td class="px-3 py-4 text-right text-sm"><button class="text-indigo-600 hover:text-indigo-900 dark:text-indigo-400" data-id="${entry.id}"><i data-lucide="edit" class="w-4 h-4"></i></button><button class="text-red-600 hover:text-red-900 dark:text-red-400 ml-2" data-id="${entry.id}"><i data-lucide="trash-2" class="w-4 h-4"></i></button></td>`;
+                        tr.querySelector('button.text-indigo-600').addEventListener('click', (e) => { const entryToEdit = db.exercise.find(ex => ex.id == e.currentTarget.dataset.id); if(entryToEdit) showExerciseModal(entryToEdit); });
+                        tr.querySelector('button.text-red-600').addEventListener('click', (e) => deleteExerciseEntry(e.currentTarget.dataset.id));
+                        exerciseHistoryBody.appendChild(tr);
+                    });
+                }
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            };
+            
+            // [NEW] Render Exercise Calendar
+            const renderExerciseCalendar = () => {
+                const year = exerciseCalendarDisplayDate.getFullYear();
+                const month = exerciseCalendarDisplayDate.getMonth();
+                const monthName = exerciseCalendarDisplayDate.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
+                exMonthDisplay.innerText = monthName;
+
+                // Disable next month button if it's in the future
+                const today = new Date();
+                exNextMonthBtn.disabled = (year === today.getFullYear() && month === today.getMonth());
+                
+                const datesWithData = new Set(db.exercise.map(item => item.date)); // [MODIFIED] Use db.exercise
+                createExerciseCalendarGrid(year, month, datesWithData); // [MODIFIED] Call new function
+            };
+
+            // [NEW] Create Exercise Calendar Grid
+            const createExerciseCalendarGrid = (year, month, datesWithData) => {
+                exerciseCalendarContainer.innerHTML = ''; // [MODIFIED] Use exercise container
+
+                const grid = document.createElement('div');
+                grid.className = 'calendar-grid'; // [MODIFIED] Use class
+                grid.id = 'exercise-calendar-grid'; // [NEW] Add ID for theming
+
+                // Add headers (อา, จ, อ, ...)
+                const daysOfWeek = ['อา', 'จ', 'อ', 'พ', 'ศ', 'ส'];
+                daysOfWeek.forEach(day => {
+                    const headerEl = document.createElement('div');
+                    headerEl.className = 'calendar-day-header';
+                    headerEl.innerText = day;
+                    grid.appendChild(headerEl);
+                });
+
+                const firstDayOfMonth = new Date(year, month, 1).getDay(); // 0 = Sunday, 1 = Monday
+                const daysInMonth = new Date(year, month + 1, 0).getDate();
+                const todayStr = getTodayString();
+
+                // Add empty cells for padding
+                for (let i = 0; i < firstDayOfMonth; i++) {
+                    const emptyEl = document.createElement('div');
+                    emptyEl.className = 'calendar-day empty';
+                    grid.appendChild(emptyEl);
+                }
+
+                // Add day cells
+                for (let day = 1; day <= daysInMonth; day++) {
+                    const date = new Date(year, month, day);
+                    const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;                    
+                    const dayEl = document.createElement('div');
+                    dayEl.className = 'calendar-day';
+                    dayEl.innerText = day;
+                    dayEl.dataset.date = dateString;
+
+                    if (dateString === todayStr) {
+                        dayEl.classList.add('today');
+                    }
+                    if (dateString === viewingDate) {
+                        dayEl.classList.add('selected');
+                    }
+                    if (datesWithData.has(dateString)) {
+                        const dot = document.createElement('span');
+                        dot.className = 'calendar-day-dot';
+                        dayEl.appendChild(dot);
+                    }
+
+                    // Add click event
+                    dayEl.addEventListener('click', () => {
+                        viewingDate = dateString;
+                        renderExerciseLog(); // [MODIFIED] Call renderExerciseLog
+                    });
+                    
+                    grid.appendChild(dayEl);
+                }
+                
+                exerciseCalendarContainer.appendChild(grid); // [MODIFIED] Use exercise container
+            };
+            
+            const showExerciseModal = (entry = null) => {
+                const title = entry ? 'แก้ไขการออกกำลังกาย' : 'เพิ่มการออกกำลังกาย';
+                const html = `<h2 class="text-xl font-semibold mb-4">${title}</h2>
+                    <form id="exercise-form" class="space-y-3">
+                        <input type="hidden" id="exercise-id" value="${entry ? entry.id : ''}">
+                        <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300">วันที่</label><input type="date" id="exercise-date" value="${entry ? entry.date : viewingDate}" class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700" required></div>
+                        <div>
+                            <label for="exercise-type" class="block text-sm font-medium text-gray-700 dark:text-gray-300">กิจกรรม</label>
+                            <div class="mt-1 flex space-x-2">
+                                <input type="text" id="exercise-type" value="${entry ? entry.type : ''}" class="flex-grow block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700" required placeholder="เช่น วิ่ง 30 นาที">
+                                <button type="button" id="gemini-calc-ex-btn" class="flex-shrink-0 p-2 btn-gradient rounded-lg text-white" title="คำนวณแคลอรี่ด้วย AI">
+                                    <i data-lucide="sparkles" class="w-5 h-5"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div><label for="exercise-duration" class="block text-sm font-medium text-gray-700 dark:text-gray-300">ระยะเวลา (นาที)</label><input type="number" id="exercise-duration" value="${entry ? entry.duration : ''}" class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700" required></div>
+                            <div><label for="exercise-calories" class="block text-sm font-medium text-gray-700 dark:text-gray-300">แคลอรี่ (kcal)</label><input type="number" id="exercise-calories" value="${entry ? entry.calories : ''}" class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700" required></div>
+                        </div>
+                        <div class="pt-4 flex justify-end space-x-3"><button type="button" id="cancel-btn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg dark:bg-gray-600 dark:text-gray-200">ยกเลิก</button><button type="submit" class="px-4 py-2 btn-gradient text-white rounded-lg">บันทึก</button></div>
+                    </form>`;
+                showModal(html);
+                document.getElementById('gemini-calc-ex-btn').addEventListener('click', handleGeminiExerciseCalculation);
+                document.getElementById('exercise-form').addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    const duration = parseFloat(document.getElementById('exercise-duration').value) || 0;
+                    const calories = parseFloat(document.getElementById('exercise-calories').value) || 0;
+                    if (duration <= 0 || calories <= 0) { showToast('กรุณากรอกเวลาและแคลอรี่ให้ถูกต้อง (มากกว่า 0)', true); return; }
+                    const newEntry = {
+                        id: document.getElementById('exercise-id').value || crypto.randomUUID(),
+                        date: document.getElementById('exercise-date').value,
+                        type: document.getElementById('exercise-type').value,
+                        duration: duration,
+                        calories: calories,
+                    };
+                    const existingIndex = db.exercise.findIndex(ex => ex.id == newEntry.id);
+                    if (existingIndex > -1) { db.exercise[existingIndex] = newEntry; } else { db.exercise.push(newEntry); }
+                    
+                    // [NEW] Set viewing date and calendar to the added date
+                    viewingDate = newEntry.date;
+                    exerciseCalendarDisplayDate = new Date(viewingDate + 'T00:00:00');
+                    
+                    saveData(); 
+                    renderExerciseLog(); 
+                    renderDashboard(); 
+                    hideModal(); 
+                    showToast('บันทึกการออกกำลังกายสำเร็จ!');
+                });
+                document.getElementById('cancel-btn').addEventListener('click', () => hideModal());
+            };
+            emptyExerciseBtn.addEventListener('click', () => showExerciseModal(null));
+            const deleteExerciseEntry = (id) => {
+                db.exercise = db.exercise.filter(ex => ex.id != id); saveData(); renderExerciseLog(); renderDashboard(); showToast('ลบข้อมูลแล้ว', true);
+            };
+            // [REMOVED] Old daily nav listeners
+            // exPrevDayBtn.addEventListener('click', () => { viewingDate = addDays(viewingDate, -1); renderExerciseLog(); });
+            // exNextDayBtn.addEventListener('click', () => { viewingDate = addDays(viewingDate, 1); renderExerciseLog(); });
+            
+            // [NEW] Exercise Calendar month navigation
+            exPrevMonthBtn.addEventListener('click', () => { 
+                exerciseCalendarDisplayDate.setMonth(exerciseCalendarDisplayDate.getMonth() - 1); 
+                renderExerciseLog(); // [MODIFIED] Call renderExerciseLog
+            });
+            exNextMonthBtn.addEventListener('click', () => { 
+                exerciseCalendarDisplayDate.setMonth(exerciseCalendarDisplayDate.getMonth() + 1); 
+                renderExerciseLog(); // [MODIFIED] Call renderExerciseLog
+            });
+            
+            // 4. Nutrition
+            const renderNutritionPage = () => {
+                const navDateStr = formatNavDate(viewingDate);
+                // nutriDateDisplay.innerText = navDateStr; // [REMOVED] Calendar handles this
+                waterDateText.innerText = navDateStr;
+                foodDateText.innerText = navDateStr;
+                // nutriNextDayBtn.disabled = (viewingDate === getTodayString()); // [REMOVED]
+                // nutriNextDayBtn.style.opacity = nutriNextDayBtn.disabled ? '0.5' : '1'; // [REMOVED]
+                
+                const dayNutrition = db.nutrition.filter(item => item.date === viewingDate);
+                const total = dayNutrition.reduce((acc, item) => {
+                    acc.calories += item.calories; acc.protein += item.protein; acc.carbs += item.carbs; acc.fat += item.fat;
+                    return acc;
+                }, { calories: 0, protein: 0, carbs: 0, fat: 0 });
+                let tdee = 2000; const currentWeight = getCurrentWeight();
+                if (db.profile.height && db.profile.age && currentWeight) {
+                    const bmr = calculateBMR(currentWeight.weight, db.profile.height, db.profile.age, db.profile.gender);
+                    tdee = calculateTDEE(bmr, db.profile.activityLevel);
+                }
+                nutriCalories.innerText = total.calories.toFixed(0); nutriCaloriesGoal.innerText = tdee.toFixed(0);
+                nutriProtein.innerText = total.protein.toFixed(1); nutriCarbs.innerText = total.carbs.toFixed(1); nutriFat.innerText = total.fat.toFixed(1);
+                foodLogList.innerHTML = '';
+                if (dayNutrition.length === 0) { emptyStateFood.style.display = 'block'; } 
+                else {
+                    emptyStateFood.style.display = 'none';
+                    dayNutrition.forEach((item) => {
+                        const li = document.createElement('li');
+                        li.className = 'py-3 flex justify-between items-center';
+                        li.innerHTML = `<div><p class="text-sm font-medium text-gray-800 dark:text-gray-200">${item.item}</p><p class="text-xs text-gray-500 dark:text-gray-400">${item.calories} kcal | P: ${item.protein}g | C: ${item.carbs}g | F: ${item.fat}g</p></div><button class="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 text-sm" data-id="${item.id}"><i data-lucide="trash-2" class="w-4 h-4"></i></button>`;
+                        li.querySelector('button').addEventListener('click', (e) => deleteFoodEntry(e.currentTarget.dataset.id));
+                        foodLogList.appendChild(li);
+                    });
+                }
+                renderWaterTracker();
+                renderNutritionCalendar(); // [NEW] Render calendar
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            };
+
+            // [NEW] Render Nutrition Calendar
+            const renderNutritionCalendar = () => {
+                const year = calendarDisplayDate.getFullYear();
+                const month = calendarDisplayDate.getMonth();
+                const monthName = calendarDisplayDate.toLocaleDateString('th-TH', { month: 'long', year: 'numeric' });
+                nutriMonthDisplay.innerText = monthName;
+
+                // Disable next month button if it's in the future
+                const today = new Date();
+                nutriNextMonthBtn.disabled = (year === today.getFullYear() && month === today.getMonth());
+                
+                const datesWithData = new Set(db.nutrition.map(item => item.date));
+                createCalendar(year, month, datesWithData);
+            };
+
+            // [NEW] Create Calendar Grid
+            const createCalendar = (year, month, datesWithData) => {
+                nutritionCalendarContainer.innerHTML = ''; // Clear old calendar
+
+                const grid = document.createElement('div');
+                grid.className = 'calendar-grid'; // [MODIFIED] Use class
+                grid.id = 'nutrition-calendar-grid'; // Keep ID for theming
+
+                // Add headers (อา, จ, อ, ...)
+                const daysOfWeek = ['อา', 'จ', 'อ', 'พ', 'ศ', 'ส'];
+                daysOfWeek.forEach(day => {
+                    const headerEl = document.createElement('div');
+                    headerEl.className = 'calendar-day-header';
+                    headerEl.innerText = day;
+                    grid.appendChild(headerEl);
+                });
+
+                const firstDayOfMonth = new Date(year, month, 1).getDay(); // 0 = Sunday, 1 = Monday
+                const daysInMonth = new Date(year, month + 1, 0).getDate();
+                const todayStr = getTodayString();
+
+                // Add empty cells for padding
+                for (let i = 0; i < firstDayOfMonth; i++) {
+                    const emptyEl = document.createElement('div');
+                    emptyEl.className = 'calendar-day empty';
+                    grid.appendChild(emptyEl);
+                }
+
+                // Add day cells
+                for (let day = 1; day <= daysInMonth; day++) {
+                    const date = new Date(year, month, day);
+                    const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;                    
+                    const dayEl = document.createElement('div');
+                    dayEl.className = 'calendar-day';
+                    dayEl.innerText = day;
+                    dayEl.dataset.date = dateString;
+
+                    if (dateString === todayStr) {
+                        dayEl.classList.add('today');
+                    }
+                    if (dateString === viewingDate) {
+                        dayEl.classList.add('selected');
+                    }
+                    if (datesWithData.has(dateString)) {
+                        const dot = document.createElement('span');
+                        dot.className = 'calendar-day-dot';
+                        dayEl.appendChild(dot);
+                    }
+
+                    // Add click event
+                    dayEl.addEventListener('click', () => {
+                        viewingDate = dateString;
+                        // No need to change calendarDisplayDate here, just re-render the page
+                        renderNutritionPage(); // This will re-render calendar (for selection) and lists
+                    });
+                    
+                    grid.appendChild(dayEl);
+                }
+                
+                nutritionCalendarContainer.appendChild(grid);
+            };
+
+            const renderWaterTracker = () => {
+                const waterCount = db.water[viewingDate] || 0;
+                waterCountDisplay.innerText = waterCount;
+                waterGoalDisplay.innerText = db.profile.waterGoal || 8;
+                
+                // [MODIFIED] Allow water editing for any day
+                // const isToday = viewingDate === getTodayString();
+                waterIncrement.disabled = false; // !isToday;
+                waterDecrement.disabled = false; // !isTwoy;
+                waterIncrement.style.opacity = '1'; // isToday ? '1' : '0.5';
+                waterDecrement.style.opacity = '1'; // isToday ? '1' : '0.5';
+            };
+            const updateWater = (amount) => {
+                // [MODIFIED] Allow editing water for the viewingDate
+                let currentCount = db.water[viewingDate] || 0;
+                currentCount = Math.max(0, currentCount + amount);
+                db.water[viewingDate] = currentCount;
+                saveData(); 
+                renderWaterTracker(); 
+                if (viewingDate === getTodayString()) {
+                    renderDashboard(); // Only update dashboard if it's today
+                }
+            };
+            waterIncrement.addEventListener('click', () => updateWater(1));
+            waterDecrement.addEventListener('click', () => updateWater(-1));
+            
+            const showFoodModal = () => {
+                const html = `
+                    <h2 class="text-xl font-semibold mb-4">เพิ่มรายการอาหาร</h2>
+                    <form id="food-form" class="space-y-3">
+                        <div><label class="block text-sm font-medium text-gray-700 dark:text-gray-300">วันที่</label><input type="date" id="food-date" value="${viewingDate}" class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700" required></div>
+                        <div>
+                            <label for="food-item" class="block text-sm font-medium text-gray-700 dark:text-gray-300">รายการอาหาร</label>
+                            <div class="mt-1 flex space-x-2">
+                                <input type="text" id="food-item" class="flex-grow block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700" required placeholder="เช่น ข้าวผัดกะเพราไข่ดาว">
+                                <button type="button" id="gemini-calc-btn" class="flex-shrink-0 p-2 btn-gradient rounded-lg text-white" title="คำนวณด้วย AI">
+                                    <i data-lucide="sparkles" class="w-5 h-5"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div><label for="food-calories" class="block text-sm font-medium text-gray-700 dark:text-gray-300">แคลอรี่ (kcal)</label><input type="number" id="food-calories" class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700" required></div>
+                        
+                        <button type="button" id="toggle-macros" class="text-sm text-indigo-600 dark:text-indigo-400 font-medium">เพิ่มข้อมูลโภชนาการ (ขั้นสูง)</button>
+                        <div id="macros-inputs" class="hidden space-y-3 pt-2">
+                            <div class="grid grid-cols-3 gap-4">
+                                <div><label for="food-protein" class="block text-sm font-medium text-gray-700 dark:text-gray-300">โปรตีน (g)</label><input type="number" step="0.1" id="food-protein" class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700" value="0"></div>
+                                <div><label for="food-carbs" class="block text-sm font-medium text-gray-700 dark:text-gray-300">คาร์โบฯ (g)</label><input type="number" step="0.1" id="food-carbs" class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700" value="0"></div>
+                                <div><label for="food-fat" class="block text-sm font-medium text-gray-700 dark:text-gray-300">ไขมัน (g)</label><input type="number" step="0.1" id="food-fat" class="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700" value="0"></div>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center"><input id="save-favorite" type="checkbox" class="h-4 w-4 text-indigo-600 border-gray-300 rounded"><label for="save-favorite" class="ml-2 block text-sm text-gray-900 dark:text-gray-300">บันทึกเป็นรายการโปรด</label></div>
+                        <div class="pt-4 flex justify-end space-x-3"><button type="button" id="cancel-btn" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg dark:bg-gray-600 dark:text-gray-200">ยกเลิก</button><button type="submit" class="px-4 py-2 btn-gradient text-white rounded-lg">บันทึก</button></div>
+                    </form>`;
+                showModal(html);
+                document.getElementById('gemini-calc-btn').addEventListener('click', handleGeminiCalculation);
+                document.getElementById('toggle-macros').addEventListener('click', (e) => {
+                    document.getElementById('macros-inputs').classList.toggle('hidden');
+                    e.target.innerText = document.getElementById('macros-inputs').classList.contains('hidden') ? 'เพิ่มข้อมูลโภชนาการ (ขั้นสูง)' : 'ซ่อนข้อมูลโภชนาการ';
+                });
+                document.getElementById('food-form').addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    const calories = parseFloat(document.getElementById('food-calories').value) || 0;
+                    const item = document.getElementById('food-item').value;
+                    const date = document.getElementById('food-date').value; // [NEW] Get date from form
+                    if (calories <= 0) { showToast('กรุณากรอกแคลอรี่ที่ถูกต้อง (มากกว่า 0)', true); return; }
+                    if (!item) { showToast('กรุณาใส่ชื่อรายการอาหาร', true); return; }
+                    const newFood = {
+                        id: crypto.randomUUID(),
+                        date: date, // [MODIFIED] Use date from form
+                        item: item,
+                        calories: calories,
+                        protein: parseFloat(document.getElementById('food-protein').value) || 0,
+                        carbs: parseFloat(document.getElementById('food-carbs').value) || 0,
+                        fat: parseFloat(document.getElementById('food-fat').value) || 0,
+                    };
+                    db.nutrition.push(newFood);
+                    if (document.getElementById('save-favorite').checked) {
+                        const favExists = db.favoriteFoods.some(f => f.item.toLowerCase() === newFood.item.toLowerCase());
+                        if (!favExists) {
+                            db.favoriteFoods.push({ id: crypto.randomUUID(), item: newFood.item, calories: newFood.calories, protein: newFood.protein, carbs: newFood.carbs, fat: newFood.fat });
+                        }
+                    }
+                    saveData(); 
+                    viewingDate = date; // [NEW] Set viewing date to the date just added
+                    calendarDisplayDate = new Date(date + 'T00:00:00'); // [NEW] Set calendar month
+                    renderNutritionPage(); 
+                    renderDashboard(); 
+                    hideModal(); 
+                    showToast('บันทึกอาหารสำเร็จ!');
+                });
+                document.getElementById('cancel-btn').addEventListener('click', () => hideModal());
+            };
+            emptyFoodBtn.addEventListener('click', showFoodModal);
+            openFavModalBtn.addEventListener('click', () => {
+                if (db.favoriteFoods.length === 0) { showToast('คุณยังไม่มีรายการโปรด', true); return; }
+                let itemsHtml = db.favoriteFoods.map(item => `<li class="py-3 flex justify-between items-center group"><div class="cursor-pointer" data-id="${item.id}"><p class="text-sm font-medium text-gray-800 dark:text-gray-200">${item.item}</p><p class="text-xs text-gray-500 dark:text-gray-400">${item.calories} kcal | P: ${item.protein}g | C: ${item.carbs}g | F: ${item.fat}g</p></div><button class="text-red-500 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 text-sm opacity-0 group-hover:opacity-100 transition" data-id="${item.id}"><i data-lucide="trash-2" class="w-4 h-4"></i></button></li>`).join('');
+                const html = `<h2 class="text-xl font-semibold mb-4">เพิ่มจากรายการโปรด</h2><p class="text-sm text-gray-600 dark:text-gray-400 mb-2">คลิกที่รายการเพื่อเพิ่มลงในบันทึกของ ${formatNavDate(viewingDate)}</p><ul class="divide-y divide-gray-200 dark:divide-gray-700 max-h-60 overflow-y-auto">${itemsHtml}</ul><button type="button" id="cancel-btn" class="mt-4 px-4 py-2 w-full bg-gray-200 text-gray-700 rounded-lg dark:bg-gray-600 dark:text-gray-200">ปิด</button>`;
+                showModal(html);
+                modalContent.querySelectorAll('li div').forEach(div => {
+                    div.addEventListener('click', (e) => {
+                        const favItem = db.favoriteFoods.find(f => f.id == e.currentTarget.dataset.id);
+                        if (favItem) {
+                            db.nutrition.push({ ...favItem, id: crypto.randomUUID(), date: viewingDate });
+                            saveData(); renderNutritionPage(); renderDashboard(); hideModal();
+                            showToast(`เพิ่ม '${favItem.item}' สำเร็จ!`);
+                        }
+                    });
+                });
+                modalContent.querySelectorAll('li button').forEach(btn => {
+                    btn.addEventListener('click', (e) => {
+                        db.favoriteFoods = db.favoriteFoods.filter(f => f.id != e.currentTarget.dataset.id);
+                        saveData(); hideModal(); openFavModalBtn.click(); showToast('ลบรายการโปรดแล้ว', true);
+                    });
+                });
+                document.getElementById('cancel-btn').addEventListener('click', () => hideModal());
+            });
+            const deleteFoodEntry = (id) => {
+                db.nutrition = db.nutrition.filter(item => item.id != id); 
+                saveData(); 
+                renderNutritionPage(); 
+                renderDashboard(); 
+                showToast('ลบรายการอาหารแล้ว', true);
+            };
+            
+            // [NEW] Nutrition Calendar month navigation
+            nutriPrevMonthBtn.addEventListener('click', () => { 
+                calendarDisplayDate.setMonth(calendarDisplayDate.getMonth() - 1); 
+                renderNutritionCalendar(); 
+            });
+            nutriNextMonthBtn.addEventListener('click', () => { 
+                calendarDisplayDate.setMonth(calendarDisplayDate.getMonth() + 1); 
+                renderNutritionCalendar(); 
+            });
+            
+            // 5. Profile Page
+            const renderProfilePage = () => {
+                if (!db.profile) return;
+                document.getElementById('height').value = db.profile.height || '';
+                document.getElementById('gender').value = db.profile.gender || 'male';
+                document.getElementById('age').value = db.profile.age || '';
+                document.getElementById('goal-weight').value = db.profile.goalWeight || '';
+                document.getElementById('water-goal').value = db.profile.waterGoal || 8;
+                document.getElementById('exercise-goal').value = db.profile.exerciseGoal || 300; 
+                document.getElementById('activity-level').value = db.profile.activityLevel || '1.2';
+                apiKeyInput.value = db.profile.apiKey || ''; 
+                googleSheetUrlInput.value = db.profile.googleSheetUrl || ''; // [NEW]
+                applyTheme(); 
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            };
+            profileGoalForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const height = parseFloat(document.getElementById('height').value);
+                const age = parseInt(document.getElementById('age').value);
+                const goalWeight = parseFloat(document.getElementById('goal-weight').value);
+                const waterGoal = parseInt(document.getElementById('water-goal').value);
+                const exerciseGoal = parseInt(document.getElementById('exercise-goal').value); 
+                if (height <= 0 || age <= 0 || goalWeight <= 0 || waterGoal <= 0 || exerciseGoal <= 0) { showToast('กรุณากรอกข้อมูลโปรไฟล์ให้ถูกต้อง', true); return; }
+                db.profile.height = height; db.profile.gender = document.getElementById('gender').value;
+                db.profile.age = age; db.profile.goalWeight = goalWeight;
+                db.profile.waterGoal = waterGoal;
+                db.profile.exerciseGoal = exerciseGoal; 
+                db.profile.activityLevel = parseFloat(document.getElementById('activity-level').value);
+                saveData(); renderAll(); showToast('บันทึกโปรไฟล์สำเร็จ!');
+            });
+            saveApiKeyBtn.addEventListener('click', () => {
+                const newKey = apiKeyInput.value.trim();
+                db.profile.apiKey = newKey || null;
+                saveData();
+                showToast('บันทึก API Key สำเร็จ!');
+            });
+            const calculateBMI = (weight, height) => (weight / ((height / 100) ** 2));
+            const getBMICategory = (bmi) => {
+                if (bmi < 18.5) return { text: "น้ำหนักน้อยกว่าเกณฑ์", color: "text-blue-500" };
+                if (bmi < 23) return { text: "สมส่วน", color: "text-green-500" };
+                if (bmi < 25) return { text: "น้ำหนักเกิน", color: "text-yellow-500" };
+                if (bmi < 30) return { text: "โรคอ้วนระดับ 1", color: "text-orange-500" };
+                return { text: "โรคอ้วนระดับ 2", color: "text-red-500" };
+            };
+            const calculateBMR = (weight, height, age, gender) => {
+                if (!weight || !height || !age) return 0;
+                if (gender === 'male') { return (10 * weight) + (6.25 * height) - (5 * age) + 5; } 
+                else { return (10 * weight) + (6.25 * height) - (5 * age) - 161; }
+            };
+            const calculateTDEE = (bmr, activityLevel) => (bmr * activityLevel);
+            calculateBmiBmrBtn.addEventListener('click', () => {
+                const current = getCurrentWeight(); const profile = db.profile;
+                if (!current || !profile.height || !profile.age) { showToast('กรุณากรอกข้อมูลโปรไฟล์และน้ำหนักก่อน', true); return; }
+                const weight = current.weight; const { height, age, gender, activityLevel } = profile;
+                const bmi = calculateBMI(weight, height); const category = getBMICategory(bmi);
+                const bmr = calculateBMR(weight, height, age, gender); const tdee = calculateTDEE(bmr, activityLevel);
+                bmiResult.innerText = bmi.toFixed(2); bmiCategory.innerText = category.text; bmiCategory.className = `font-semibold ${category.color}`;
+                bmrResult.innerText = bmr.toFixed(0); tdeeResult.innerText = tdee.toFixed(0);
+                calculatorResultsDiv.classList.remove('hidden');
+            });
+            accordions.forEach(button => { button.addEventListener('click', () => { const content = button.nextElementSibling; content.classList.toggle('hidden'); button.querySelector('i[data-lucide="chevron-down"]').classList.toggle('rotate-180'); }); });
+            exportDataBtn.addEventListener('click', () => {
+                const dataStr = JSON.stringify(db, null, 2);
+                const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+                const exportFileDefaultName = `health_tracker_backup_${getTodayString()}.json`;
+                const linkElement = document.createElement('a');
+                linkElement.setAttribute('href', dataUri);
+                linkElement.setAttribute('download', exportFileDefaultName);
+                linkElement.click();
+                showToast('ส่งออกข้อมูลสำเร็จ!');
+            });
+            importDataBtn.addEventListener('click', () => {
+                importFileInput.click();
+            });
+            importFileInput.addEventListener('change', (event) => {
+                const file = event.target.files[0];
+                if (!file || file.type !== 'application/json') { showToast('กรุณาเลือกไฟล์ .json ที่ถูกต้อง', true); return; }
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const importedData = JSON.parse(e.target.result);
+                        if (importedData.profile && importedData.weights) {
+                            db = importedData;
+                            saveData(); // บันทึกเป็น v13
+                            showToast('นำเข้าข้อมูลสำเร็จ! กำลังรีโหลด...');
+                            setTimeout(() => window.location.reload(), 1500);
+                        } else { showToast('ไฟล์ข้อมูลไม่ถูกต้อง', true); }
+                    } catch (err) { showToast('ไม่สามารถอ่านไฟล์ได้', true); }
+                };
+                reader.readAsText(file);
+                event.target.value = null; 
+            });
+
+            // --- INITIALIZATION ---
+            const loadApp = () => {
+                applyTheme(); 
+                renderAll(); 
+                showPage('page-dashboard'); // เริ่มที่หน้า dashboard
+                navButtons.forEach(b => b.classList.remove('active'));
+                document.querySelector('.nav-btn[data-page="page-dashboard"]').classList.add('active');
+                headerTitle.innerText = 'แดชบอร์ด';
+
+                if (typeof AutoAnimate !== 'undefined') {
+                    AutoAnimate.default(document.getElementById('weight-history-body'));
+                    AutoAnimate.default(document.getElementById('photo-gallery-container'));
+                    AutoAnimate.default(document.getElementById('exercise-history-body'));
+                    AutoAnimate.default(document.getElementById('food-log-list'));
+                    AutoAnimate.default(document.getElementById('chat-message-list')); // [NEW] Animate chat
+                }
+            }
+
+            const initApp = () => {
+                loadData(); 
+                if (!db.profile.height || !db.profile.age || !db.profile.goalWeight) {
+                    showWelcomeModal();
+                } else {
+                    loadApp();
+                }
+                if (typeof lucide !== 'undefined') lucide.createIcons();
+            };
+
+            initApp();
+        });
+    </script>
+</body>
+</html>
